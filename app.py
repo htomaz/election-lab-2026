@@ -217,7 +217,7 @@ def painel():
                 file_name='apuracao_por_uf.csv',mime='text/csv')
     else:
         st.info('Sem dados territoriais para detalhar.')
-    exibir_painel_zonas(ROOT, peso, vol, intensidade, demonstracao=demo)
+    exibir_painel_zonas(ROOT, peso, vol, intensidade, demonstracao=demo, estaduais=brutos)
 
     if not demo:
         with st.expander('Diagnóstico da coleta'):
