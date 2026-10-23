@@ -74,6 +74,9 @@ def auditar(historico_ufs, historico_zonas):
             f'2022T2: {total_2022} votos válidos; esperado 118552353. '
             'Verifique duplicação ou cobertura incompleta antes de usar o histórico.'
         )
+    total_2026 = cobertura['2026T1']['validos']
+    if cobertura['2026T1']['localidades'] == 28 and total_2026 != 119300788:
+        raise ValueError(f'2026T1: {total_2026} votos válidos; esperado 119300788.')
     return cobertura
 
 
