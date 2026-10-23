@@ -43,3 +43,18 @@ jobs:
       - name: Validar nomes municipais contra EA12 oficial
         timeout-minutes: 2
         run: python teste_integracao_municipios.py
+      - name: Gerar snapshot pontual do cadastro EA12
+        timeout-minutes: 2
+        run: |
+          python - <<'PY'
+          from municipios_tse import obter_municipios
+          import csv
+          import io
+          mapa=obter_municipios()
+          print('EA12_EXPORT_START')
+          for (uf,codigo),nome in sorted(mapa.items()):
+              buf=io.StringIO()
+              csv.writer(buf,lineterminator='').writerow([uf,codigo,nome])
+              print('EA12_ROW:'+buf.getvalue())
+          print('EA12_EXPORT_END')
+          PY
