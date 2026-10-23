@@ -40,3 +40,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 2
         run: python teste_integracao_tse.py --turno 1
+      - name: Validar nomes municipais contra EA12 oficial
+        timeout-minutes: 2
+        run: python teste_integracao_municipios.py
