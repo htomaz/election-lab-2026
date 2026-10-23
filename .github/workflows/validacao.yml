@@ -35,3 +35,8 @@ jobs:
                      if int(r['progresso_zonas_pct']) == 100), 'Falha de convergencia'
           print('Backtest valido:', len(rows), 'projecoes.')
           PY
+      - name: Conferir formato EA20 publicado (1 zona de 2026T1)
+        id: tse_ea20_remoto
+        continue-on-error: true
+        timeout-minutes: 2
+        run: python teste_integracao_tse.py --turno 1
