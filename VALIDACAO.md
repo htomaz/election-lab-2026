@@ -20,6 +20,24 @@
   `python teste_integracao_tse.py --turno 2`. O código não fabrica resultados
   nem presume que as URLs já estejam disponíveis.
 
+## Exibição do nome do município
+
+O arquivo `municipios_2026.csv` é um snapshot do cadastro EA12 do TSE
+(`6257/config/mun-e006257-cm.json`), capturado em 23/10/2026. Contém
+**5.757** localidades com `UF`, código TSE e nome oficial. Ele é versionado
+no GitHub para que a interface consiga exibir nomes mesmo se a rede estiver
+indisponível durante a apuração. O código TSE de cinco dígitos permanece
+a chave interna utilizada para apuração e exportação CSV.
+
+A comparação do cadastro com os dois históricos identifica uma única
+exceção: `ZZ/99252`, presente na série histórica, mas ausente do EA12
+2026. O app informa **nome indisponível** nessa localidade sem inventar um
+nome ou alterar seus votos.
+
+A validação independente do arquivo online pode ser repetida por
+`python teste_integracao_municipios.py`, e os testes unitários conferem
+a cobertura do snapshot versionado.
+
 ## Regras de apresentação ao vivo
 
 1. Arquivo nacional e arquivos estaduais são **resultados oficiais**, nunca
