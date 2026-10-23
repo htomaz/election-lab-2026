@@ -5,10 +5,12 @@ from pathlib import Path
 from html import escape
 from zoneinfo import ZoneInfo
 import pandas as pd
+import requests
 import plotly.graph_objects as go
 import streamlit as st
 from diagnostico_zonas import diagnosticar_zonas
 from auditoria_ao_vivo import reconciliar_brasil
+from municipios_tse import obter_municipios, nome_municipio, ordenar_municipios
 from painel_zonas import exibir_painel_zonas
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
@@ -59,6 +61,19 @@ with st.sidebar:
     intensidade = st.slider('Ajuste das parciais estaduais', 0., .8, .35, .05)
     st.caption('Estimativa experimental por UF, ainda sem calibração retrospectiva por zona.')
     st.markdown('[Fonte oficial do TSE](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados)')
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def carregar_nomes_municipais():
+    """Uma consulta à configuração de municípios do TSE por dia, compartilhada no app."""
+    return obter_municipios(ROOT/'municipios_2026.csv')
+
+
+def nomes_municipais_seguros():
+    try:
+        return carregar_nomes_municipais(), None
+    except (OSError, ValueError, requests.RequestException) as exc:
+        return {}, f'{type(exc).__name__}: {str(exc)[:130]}'
 
 
 def fmt_pct(v):
@@ -228,7 +243,12 @@ def painel():
                 file_name='apuracao_por_uf.csv',mime='text/csv')
     else:
         st.info('Sem dados territoriais para detalhar.')
-    exibir_painel_zonas(ROOT, peso, vol, intensidade, demonstracao=demo, estaduais=brutos)
+    nomes_municipios, erro_nomes = nomes_municipais_seguros()
+    if erro_nomes:
+        st.info('Cadastro de municípios do TSE indisponível nesta consulta: '
+                'alguns nomes podem aparecer acompanhados do código.')
+    exibir_painel_zonas(ROOT, peso, vol, intensidade, demonstracao=demo,
+                        estaduais=brutos, nomes_municipios=nomes_municipios)
 
     if not demo:
         with st.expander('Diagnóstico da coleta'):
@@ -297,8 +317,17 @@ def historicos():
         try:
             z=ler_zonas(str(zona_path),zona_path.stat().st_mtime_ns)
             uf=st.selectbox('UF histórica',sorted(z['uf'].unique()),key='uf_historico')
-            mun=st.selectbox('Código TSE do município',sorted(z.loc[z['uf']==uf,'municipio'].unique()),key='mun_historico')
+            nomes_municipios, erro_nomes = nomes_municipais_seguros()
+            if erro_nomes:
+                st.info('Não foi possível consultar o cadastro oficial de nomes dos municípios. '
+                        'O código eleitoral será exibido apenas onde faltar o nome.')
+            codigos=ordenar_municipios(uf,z.loc[z['uf']==uf,'municipio'].unique(),
+                                       nomes_municipios)
+            mun=st.selectbox('Município',codigos,
+                             format_func=lambda codigo: nome_municipio(uf,codigo,nomes_municipios),
+                             key='mun_historico')
             zona=st.selectbox('Zona eleitoral',sorted(z.loc[(z['uf']==uf)&(z['municipio']==mun),'zona'].unique()),key='zona_historico')
+            st.caption('Município selecionado: '+nome_municipio(uf,mun,nomes_municipios))
             subset=z[(z['uf']==uf)&(z['municipio']==mun)&(z['zona']==zona)].copy()
             subset['Lula (%) válidos']=100*subset['lula']/subset['validos'].replace(0,float('nan'))
             subset['Candidato 22 (%) válidos']=100*subset['direita']/subset['validos'].replace(0,float('nan'))
