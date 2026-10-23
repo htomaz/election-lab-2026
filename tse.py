@@ -42,12 +42,14 @@ def normalizar_ea20(payload: dict, uf: str) -> dict:
     validos_oficiais = as_int((payload.get('v') or {}).get('tvn'))
     validos_candidatos = sum(votos.values())
     # 2º turno presidencial: não produzir percentual se os votos não batem
-    if validos_oficiais and validos_candidatos and abs(validos_candidatos - validos_oficiais) > 1:
+    if validos_oficiais and abs(validos_candidatos - validos_oficiais) > 1:
         raise ValueError(f'{uf}: divergência de votos válidos {validos_oficiais} vs {validos_candidatos}')
     total = validos_oficiais or validos_candidatos
+    if total and (NUM_LULA not in votos or NUM_FLAVIO not in votos):
+        raise ValueError(f'{uf}: candidatos esperados ausentes do JSON; conferir layout e números')
     st = as_int(secoes.get('st'))
     ts = as_int(secoes.get('ts'))
-    if st < 0 or ts < st:
+    if st < 0 or ts < st or (total > 0 and ts == 0):
         raise ValueError(f'{uf}: quantidade inválida de seções')
     data = str(payload.get('dg',''))
     hora = str(payload.get('hg',''))
