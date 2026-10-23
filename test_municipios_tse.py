@@ -47,6 +47,19 @@ class TestMunicipios(unittest.TestCase):
                 {'cd':'71072','nm':'SÃO PAULO'},
                 {'cd':'71072','nm':'SANTO ANDRÉ'}]}]})
 
+    def test_snapshot_oficial_versionado_cobre_historico(self):
+        from municipios_tse import obter_municipios
+        import csv
+        from pathlib import Path
+        mapa=obter_municipios('municipios_2026.csv')
+        self.assertEqual(len(mapa),5757)
+        self.assertEqual(mapa[('SP','71072')],'SÃO PAULO')
+        with Path('historico_zonas.csv').open(newline='',encoding='utf-8-sig') as f:
+            codigos={(r['uf'],r['municipio']) for r in csv.DictReader(f)}
+        ausentes=codigos-set(mapa)
+        # Uma localidade ZZ de eleições passadas já não consta no EA12 2026.
+        self.assertEqual(ausentes,{('ZZ','99252')})
+
     def test_csv_local_valida_e_preserva_zeros(self):
         with tempfile.TemporaryDirectory() as pasta:
             path=Path(pasta)/'municipios_2026.csv'
