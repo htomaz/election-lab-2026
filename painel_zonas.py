@@ -49,7 +49,7 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False):
                    key=lambda k:historico[k][(2026,1)]['validos'],reverse=True)[:AMOSTRA_MAX]
     votos_amostra=sum(historico[k][(2026,1)]['validos'] for k in amostra)
     votos_uf=sum(historico[k][(2026,1)]['validos'] for k in universo)
-    st.caption(f'Amostra intencional das {len(amostra)} maiores zonas de {len(universo)} '
+    st.caption(f'Amostra intencional das {len(amostra)} maiores combinações município/zona de {len(universo)} '
                f'(participação no volume histórico de votos válidos da UF: '
                f'{100*votos_amostra/max(1,votos_uf):.1f}%). '
                'Não é uma amostra aleatória nem cobre toda a UF.')
@@ -116,12 +116,12 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False):
     obs_validos=sum(x['validos'] for x in observadas.values())
     cobertura=100*len(observadas)/len(universo)
     a,b,c=st.columns(3)
-    a.metric('Zonas consultadas (recentes)',f'{len(observadas)} / {len(universo)}')
+    a.metric('Município/zonas consultados',f'{len(observadas)} / {len(universo)}')
     b.metric('Votos válidos nas consultas',f'{obs_validos:,}'.replace(',','.'))
     proporcao=100*parcial['lula']/max(1.,parcial['lula']+parcial['flavio'])
     c.metric('Lula · projeção zonal da UF',f'{proporcao:.2f}%'.replace('.',','))
     if cobertura < 80:
-        st.warning(f'Cobertura territorial de consultas: {cobertura:.1f}% das zonas. '
+        st.warning(f'Cobertura territorial de consultas: {cobertura:.1f}% das combinações município/zona. '
                    'A projeção zonal é preliminar, dominada pelo histórico, '
                    'e NÃO deve substituir a projeção oficial/estadual.')
     else:
