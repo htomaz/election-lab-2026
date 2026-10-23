@@ -10,6 +10,7 @@ import time
 import pandas as pd
 import streamlit as st
 
+from auditoria_ao_vivo import reconciliar_zonas, validar_substituicao
 from modelo_zonas import carregar_zonas, projetar_zonas
 from tse import UFS, baixar_zona, resultado_disponivel
 
@@ -23,7 +24,7 @@ def _historico(caminho, mtime):
     return carregar_zonas(caminho)
 
 
-def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False):
+def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False, estaduais=None):
     st.markdown('### Monitor territorial por zona · experimental')
     st.caption('EA20 por zona, histórico TSE de 2022/2026 e projeção local. '
                'A cobertura por zonas consultadas NÃO equivale ao percentual de seções totalizadas.')
@@ -81,7 +82,12 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False):
                     if '404' in erro or '403' in erro or '429' in erro:
                         suspendidos.add(selecionada)
                 elif dados:
-                    snapshots[key]={'capturado':time.time(),'dados':dados}
+                    anterior=snapshots.get(key,{}).get('dados')
+                    aceitar,motivo=validar_substituicao(anterior,dados)
+                    if aceitar and int(dados.get('secoes_total',0))>0:
+                        snapshots[key]={'capturado':time.time(),'dados':dados}
+                    elif not aceitar:
+                        erros.append(motivo)
         if erros:
             st.warning('Algumas zonas não puderam ser consultadas: '
                        + '; '.join(sorted(set(erros))[:2]))
@@ -106,6 +112,21 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False):
     elif not observadas:
         st.info('Nenhuma parcial zonal válida coletada ainda; a estimativa a seguir '
                 'utiliza apenas o histórico.')
+
+    # A amostra deve respeitar o teto estadual na mesma geração dos dados.
+    # Como o cadastro histórico não confirma o universo oficial do 2º turno,
+    # jamais marcar esta amostra como conciliação integral.
+    diagnostico=reconciliar_zonas(observadas,(estaduais or {}).get(selecionada))
+    if ativos:
+        st.caption('Conciliação com a parcial estadual: '+diagnostico['mensagem'])
+        if diagnostico['status']=='inconsistente':
+            st.error('Parciais zonais e estadual inconsistentes; projeção zonal suspensa.')
+            st.json(diagnostico['diferencas'])
+            return
+        if observadas and diagnostico['status']!='parcial_compativel':
+            st.warning('Não há snapshot estadual comparável: projeção zonal suspensa, '
+                       'mantendo apenas as parciais oficiais por UF.')
+            return
 
     # Projeção histórica da UF inteira; zona desconhecida NÃO equivale a zero apurado.
     modelo=projetar_zonas(observadas,{k:v for k,v in historico.items() if k[0]==selecionada},
