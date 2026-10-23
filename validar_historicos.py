@@ -65,6 +65,15 @@ def auditar(historico_ufs, historico_zonas):
             'zonas': sum(len(zonas_por_uf[k]) for k in keys),
             'validos': sum(totais[k][2] for k in keys)
         }
+
+    # Referência nacional de 2022: resultados oficiais do segundo turno.
+    # Detecta, entre outros problemas, arquivos com todos os votos duplicados.
+    total_2022 = cobertura['2022T2']['validos']
+    if total_2022 and total_2022 != 118552353:
+        raise ValueError(
+            f'2022T2: {total_2022} votos válidos; esperado 118552353. '
+            'Verifique duplicação ou cobertura incompleta antes de usar o histórico.'
+        )
     return cobertura
 
 
