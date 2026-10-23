@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from diagnostico_zonas import diagnosticar_zonas
+from auditoria_ao_vivo import reconciliar_brasil
 from painel_zonas import exibir_painel_zonas
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
@@ -104,10 +105,15 @@ def painel():
         if not historico:
             st.warning('Histórico não encontrado. A apuração oficial pode ser exibida, mas a projeção permanecerá desativada. Use a aba **Históricos**.')
     nacional = brutos['BR']
+    conciliacao_nacional = None if demo else reconciliar_brasil(brutos, UFS)
     rel = projetar_locais(brutos, historico, peso, vol, intensidade)
     cobertura = rel['completo'] and len(brutos)==29 and all(brutos.get(uf,{}).get('secoes_total',0)>0 for uf in UFS)
     bases26 = sum(1 for uf in UFS if (2026,1) in historico.get(uf,{}))
     mostrar = bool(cobertura and (demo or bases26==28) and (demo or nacional.get('validos',0)>0))
+    if conciliacao_nacional and conciliacao_nacional['status']=='inconsistente':
+        mostrar=False
+        st.error('Diferença entre o arquivo BR e a soma das 28 localidades na mesma geração. '
+                 'Projeções suspensas até nova verificação.')
     progresso = 100*nacional['secoes']/nacional['secoes_total'] if nacional['secoes_total'] else 0
     total2 = nacional['lula'] + nacional['flavio']
     lula_pct = 100*nacional['lula']/total2 if total2 else None
@@ -120,6 +126,11 @@ def painel():
         ('Votos válidos apurados',fmt_int(nacional['validos']), 'Arquivo BR · TSE' if not demo else 'Dados fictícios'),
     ])
     st.caption(f"Arquivo nacional: {nacional['geracao']} · Localidades recebidas: {max(0,len(brutos)-1)}/28")
+    if conciliacao_nacional:
+        st.caption('Auditoria nacional: '+conciliacao_nacional['mensagem'])
+        if conciliacao_nacional['status']=='inconsistente':
+            with st.expander('Diferenças BR menos soma das UFs'):
+                st.json(conciliacao_nacional['diferencas'])
 
     st.markdown('<div class="section-label">Projeção nacional · modelo experimental</div>',unsafe_allow_html=True)
     if mostrar:
