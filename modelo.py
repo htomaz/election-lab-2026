@@ -14,7 +14,9 @@ from tse import UFS
 COLS = ['uf','ano','turno','lula','direita','validos']
 
 
-def carregar_historico(caminho='data/historico_ufs.csv'):
+def carregar_historico(caminho=None):
+    if caminho is None:
+        caminho = next((p for p in (Path('historico_ufs.csv'), Path('data/historico_ufs.csv')) if p.exists()), Path('historico_ufs.csv'))
     refs = {}
     if not Path(caminho).exists():
         return refs

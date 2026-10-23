@@ -23,7 +23,7 @@ def importar_zip(caminho, ano, turno, arquivo_saida='data/historico_ufs.csv', ar
     with zipfile.ZipFile(caminho) as z:
         nomes=[x for x in z.namelist() if x.lower().endswith('.csv') and not x.split('/')[-1].startswith('._')]
         # _BRASIL contém o conjunto de UFs quando presente. Processar ambos duplicaria os votos.
-        brasil=[x for x in nomes if 'BRASIL.CSV' in x.upper()]
+        brasil=[x for x in nomes if x.upper().endswith(('_BRASIL.CSV','_BR.CSV'))]
         if brasil:
             nomes=brasil
         if not nomes: raise ValueError('ZIP sem arquivos CSV compatíveis')
