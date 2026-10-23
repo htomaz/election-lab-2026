@@ -39,27 +39,34 @@ def normalizar_ea20(payload: dict, uf: str) -> dict:
     votos = {}
     nomes = {}
     for cargo in payload.get('carg', []):
+        if str(cargo.get('cd','1')).lstrip('0') != '1':
+            continue
         for agrupamento in cargo.get('agr', []):
             for partido in agrupamento.get('par', []):
                 for candidato in partido.get('cand', []):
                     numero = str(candidato.get('n', '')).strip()
                     if not numero:
                         continue
-                    votos[numero] = votos.get(numero, 0) + as_int(candidato.get('vap'))
+                    quantia = as_int(candidato.get('vap'))
+                    if quantia < 0:
+                        raise ValueError(f'{uf}: votos negativos')
+                    votos[numero] = votos.get(numero, 0) + quantia
                     nomes[numero] = candidato.get('nmu') or candidato.get('nm') or numero
     secoes = payload.get('s') or {}
     # EA20: vv = votos válidos; tvn = total de votos NULOS (não confundir).
-    validos_oficiais = as_int((payload.get('v') or {}).get('vv'))
+    campos_votos=payload.get('v') or {}
+    tem_total_oficial='vv' in campos_votos
+    validos_oficiais = as_int(campos_votos.get('vv'))
     validos_candidatos = sum(votos.values())
     # 2º turno presidencial: não produzir percentual se os votos não batem
-    if validos_oficiais and abs(validos_candidatos - validos_oficiais) > 1:
+    if tem_total_oficial and abs(validos_candidatos - validos_oficiais) > 1:
         raise ValueError(f'{uf}: divergência de votos válidos {validos_oficiais} vs {validos_candidatos}')
-    total = validos_oficiais or validos_candidatos
+    total = validos_oficiais if tem_total_oficial else validos_candidatos
     if total and (NUM_LULA not in votos or NUM_FLAVIO not in votos):
         raise ValueError(f'{uf}: candidatos esperados ausentes do JSON; conferir layout e números')
     st = as_int(secoes.get('st'))
     ts = as_int(secoes.get('ts'))
-    if st < 0 or ts < st or (total > 0 and ts == 0):
+    if st < 0 or ts < st or (total > 0 and (ts == 0 or st == 0)):
         raise ValueError(f'{uf}: quantidade inválida de seções')
     data = str(payload.get('dg',''))
     hora = str(payload.get('hg',''))
