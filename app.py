@@ -1,4 +1,4 @@
-"""Election Lab 2026 v0.3: dashboard mobile, histórico TSE e projeção experimental."""
+"""Election Lab 2026 v0.4: dashboard mobile, histórico TSE e projeção experimental."""
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from diagnostico_zonas import diagnosticar_zonas
+from painel_zonas import exibir_painel_zonas
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
@@ -216,6 +217,8 @@ def painel():
                 file_name='apuracao_por_uf.csv',mime='text/csv')
     else:
         st.info('Sem dados territoriais para detalhar.')
+    exibir_painel_zonas(ROOT, peso, vol, intensidade, demonstracao=demo)
+
     if not demo:
         with st.expander('Diagnóstico da coleta'):
             st.write(f'Localidades: {len(brutos)}/29 · Históricos 2026: {bases26}/28')
@@ -304,4 +307,4 @@ with aba1:
 with aba2:
     historicos()
 st.divider()
-st.caption('Election Lab 2026 v0.3 · Projeto independente. Resultado apurado = fonte TSE; projeções = estimativas experimentais, não oficiais.')
+st.caption('Election Lab 2026 v0.4 · Projeto independente. Resultado apurado = fonte TSE; projeções = estimativas experimentais, não oficiais.')
