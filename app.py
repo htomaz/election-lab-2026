@@ -327,7 +327,6 @@ def historicos():
                              format_func=lambda codigo: nome_municipio(uf,codigo,nomes_municipios),
                              key='mun_historico')
             zona=st.selectbox('Zona eleitoral',sorted(z.loc[(z['uf']==uf)&(z['municipio']==mun),'zona'].unique()),key='zona_historico')
-            st.caption('Município selecionado: '+nome_municipio(uf,mun,nomes_municipios))
             subset=z[(z['uf']==uf)&(z['municipio']==mun)&(z['zona']==zona)].copy()
             subset['Lula (%) válidos']=100*subset['lula']/subset['validos'].replace(0,float('nan'))
             subset['Candidato 22 (%) válidos']=100*subset['direita']/subset['validos'].replace(0,float('nan'))
