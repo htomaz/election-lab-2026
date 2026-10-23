@@ -165,6 +165,7 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False,
                    tab['municipio'].map(lambda codigo:
                        nome_municipio(selecionada,codigo,nomes_municipios or {})))
         tab=tab.rename(columns={'municipio':'Código TSE','zona':'Zona eleitoral'})
+        tab=tab.sort_values(['Município','Zona eleitoral'],kind='stable')
         apresentacao=tab.drop(columns=['Código TSE'])
         st.dataframe(apresentacao,hide_index=True,use_container_width=True)
         st.download_button('Exportar tabela zonal (CSV)',
