@@ -62,7 +62,9 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False, est
     snapshots=st.session_state['snapshots_zonais']
     cursores=st.session_state['cursor_zonal']
     suspendidos=st.session_state.setdefault('suspensao_zonal',set())
-    ativos=not demonstracao and resultado_disponivel()
+    habilitar=st.toggle('Ativar consultas oficiais da amostra zonal',value=False,
+                        key='coleta_zonal_habilitada',disabled=demonstracao or not resultado_disponivel())
+    ativos=bool(habilitar and not demonstracao and resultado_disponivel())
 
     if ativos and selecionada not in suspendidos:
         cursor=cursores.get(selecionada,0)
@@ -106,9 +108,12 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False, est
         if agora-item['capturado']>VALIDADE_SEGUNDOS:
             continue
         observadas[k]=item['dados']
-    if not ativos:
+    if not resultado_disponivel():
         st.info('A coleta oficial por zona começará somente com a apuração '
                 'de 25/10/2026, a partir das 17h (Brasília).')
+    elif not habilitar:
+        st.info('Consultas zonais desativadas nesta sessão. Ative acima para '
+                'acompanhamento sob demanda, respeitando a limitação do TSE.')
     elif not observadas:
         st.info('Nenhuma parcial zonal válida coletada ainda; a estimativa a seguir '
                 'utiliza apenas o histórico.')
