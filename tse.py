@@ -24,7 +24,7 @@ def url_resultado(uf: str, eleicao: int = ELEICAO) -> str:
     return f'{BASE}/{eleicao}/dados/{local}/{local}-c0001-e{eleicao:06d}-u.json'
 
 
-def normalizar_ea20(payload: dict, uf: str) -> dict:
+def url_resultado_zona(uf: str, municipio: str, zona: str, eleicao: int = ELEICAO) -> str:\n    uf = uf.lower()\n    municipio = str(municipio).zfill(5)\n    zona = str(zona).zfill(4)\n    if uf.upper() not in UFS or not municipio.isdigit() or not zona.isdigit() or len(municipio)!=5 or len(zona)!=4:\n        raise ValueError('Código de UF, município ou zona inválido')\n    return f'{BASE}/{eleicao}/dados/{uf}/{uf}{municipio}-z{zona}-c0001-e{eleicao:06d}-u.json'\n\n\ndef normalizar_ea20(payload: dict, uf: str) -> dict:
     if not isinstance(payload, dict) or 'carg' not in payload:
         raise ValueError(f'{uf}: arquivo sem bloco EA20 carg')
     votos = {}
@@ -39,7 +39,7 @@ def normalizar_ea20(payload: dict, uf: str) -> dict:
                     votos[numero] = votos.get(numero, 0) + as_int(candidato.get('vap'))
                     nomes[numero] = candidato.get('nmu') or candidato.get('nm') or numero
     secoes = payload.get('s') or {}
-    validos_oficiais = as_int((payload.get('v') or {}).get('tvn'))
+    # EA20: vv = votos válidos; tvn = total de votos NULOS (não confundir).\n    validos_oficiais = as_int((payload.get('v') or {}).get('vv'))
     validos_candidatos = sum(votos.values())
     # 2º turno presidencial: não produzir percentual se os votos não batem
     if validos_oficiais and abs(validos_candidatos - validos_oficiais) > 1:
@@ -87,3 +87,16 @@ def coletar():
             if erro: erros[uf] = erro
             elif item: saida[uf] = item
     return saida, erros
+
+
+def baixar_zona(uf: str, municipio: str, zona: str):
+    """EA20 agregado da zona: requisição pontual, não varredura nacional."""
+    url = url_resultado_zona(uf, municipio, zona)
+    try:
+        r = requests.get(url, timeout=(4, 9), headers={'User-Agent':'ElectionLab2026/0.4 (TSE dados publicos)'})
+        r.raise_for_status()
+        resultado = normalizar_ea20(r.json(), uf.upper())
+        resultado.update({'municipio':str(municipio).zfill(5),'zona':str(zona).zfill(4), 'url':url})
+        return resultado, None
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        return None, f'{type(exc).__name__}: {str(exc)[:160]}'
