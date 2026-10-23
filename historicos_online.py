@@ -15,7 +15,7 @@ URLS = {
     2022: 'https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_2022.zip',
     2026: 'https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_2026.zip',
 }
-LIMITE_BYTES = 450 * 1024 * 1024
+LIMITE_BYTES = 650 * 1024 * 1024
 
 
 def baixar_e_importar(ano: int, pasta='.', progresso=None, limite_bytes=LIMITE_BYTES):
