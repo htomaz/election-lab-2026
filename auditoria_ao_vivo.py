@@ -82,3 +82,37 @@ def reconciliar_zonas(observadas, estadual, universo=None):
         resultado.update(status='parcial_compativel',
                          mensagem='Amostra não supera a UF, mas NÃO equivale ao resultado estadual.')
     return resultado
+
+
+def reconciliar_brasil(localidades, nomes_ufs):
+    """Compara BR e soma das 28 localidades em snapshots da MESMA geração.
+
+    Diferenças entre horários de geração nunca são chamadas de erro.
+    A checagem não substitui resultados oficiais nem agrega períodos diferentes.
+    """
+    if 'BR' not in localidades or any(uf not in localidades for uf in nomes_ufs):
+        return {'status':'cobertura_incompleta',
+                'mensagem':'Faltam BR ou localidades: comparação nacional indisponível.',
+                'diferencas':None}
+    nacional=localidades['BR']
+    estados=[localidades[uf] for uf in nomes_ufs]
+    campos=('lula','flavio','validos','secoes','secoes_total')
+    soma={k:sum(int(x.get(k,0)) for x in estados) for k in campos}
+    dif={k:int(nacional.get(k,0))-soma[k] for k in campos}
+    ts_br=_data_geracao(nacional.get('geracao'))
+    ts_ufs=[_data_geracao(x.get('geracao')) for x in estados]
+    if ts_br is None or any(x is None for x in ts_ufs):
+        return {'status':'geracao_desconhecida',
+                'mensagem':'Horários oficiais incompletos: não conciliar.',
+                'diferencas':dif}
+    if any(x!=ts_br for x in ts_ufs):
+        return {'status':'snapshots_assincronos',
+                'mensagem':'Brasil e UFs têm horários de geração distintos; soma não é síncrona.',
+                'diferencas':dif}
+    if any(v!=0 for v in dif.values()):
+        return {'status':'inconsistente',
+                'mensagem':'BR e soma das 28 localidades divergem na mesma geração.',
+                'diferencas':dif}
+    return {'status':'reconciliado',
+            'mensagem':'BR e 28 localidades coincidem em votos e seções.',
+            'diferencas':dif}
