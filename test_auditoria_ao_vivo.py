@@ -1,7 +1,7 @@
 """Testes de conciliação EA20 entre recortes de município/zona e UF."""
 import unittest
 
-from auditoria_ao_vivo import reconciliar_zonas, validar_substituicao
+from auditoria_ao_vivo import reconciliar_zonas, reconciliar_brasil, validar_substituicao
 
 
 class TestAuditoriaAoVivo(unittest.TestCase):
@@ -47,6 +47,26 @@ class TestAuditoriaAoVivo(unittest.TestCase):
         ok,motivo=validar_substituicao(self.zonas[self.a],atual)
         self.assertFalse(ok)
         self.assertIn('regrediu',motivo)
+
+    def test_brasil_sincrono_confere(self):
+        a={'lula':40,'flavio':60,'validos':100,
+           'secoes':1,'secoes_total':2,'geracao':'25/10/2026 18:00:00'}
+        b={'lula':30,'flavio':70,'validos':100,
+           'secoes':1,'secoes_total':2,'geracao':'25/10/2026 18:00:00'}
+        br={'lula':70,'flavio':130,'validos':200,
+            'secoes':2,'secoes_total':4,'geracao':'25/10/2026 18:00:00'}
+        self.assertEqual(reconciliar_brasil({'BR':br,'SP':a,'RJ':b},['SP','RJ'])['status'],
+                         'reconciliado')
+        divergente=dict(br,lula=71)
+        self.assertEqual(reconciliar_brasil({'BR':divergente,'SP':a,'RJ':b},
+                                            ['SP','RJ'])['status'],'inconsistente')
+        fora=dict(a,geracao='25/10/2026 18:01:00')
+        self.assertEqual(reconciliar_brasil({'BR':br,'SP':fora,'RJ':b},
+                                            ['SP','RJ'])['status'],'snapshots_assincronos')
+
+    def test_brasil_incompleto(self):
+        self.assertEqual(reconciliar_brasil({'BR':self.uf},['SP','RJ'])['status'],
+                         'cobertura_incompleta')
 
     def test_rejeita_snapshot_antigo(self):
         atual=dict(self.zonas[self.a],geracao='25/10/2026 17:03:00')
