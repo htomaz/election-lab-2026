@@ -12,6 +12,7 @@ import streamlit as st
 
 from auditoria_ao_vivo import reconciliar_zonas, validar_substituicao
 from modelo_zonas import carregar_zonas, projetar_zonas
+from municipios_tse import nome_municipio
 from tse import UFS, baixar_zona, resultado_disponivel
 
 AMOSTRA_MAX = 48
@@ -24,7 +25,8 @@ def _historico(caminho, mtime):
     return carregar_zonas(caminho)
 
 
-def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False, estaduais=None):
+def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False,
+                       estaduais=None, nomes_municipios=None):
     st.markdown('### Monitor territorial por zona · experimental')
     st.caption('EA20 por zona, histórico TSE de 2022/2026 e projeção local. '
                'A cobertura por zonas consultadas NÃO equivale ao percentual de seções totalizadas.')
@@ -159,7 +161,12 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False, est
         tab=tab[['municipio','zona','secoes','secoes_total','lula_apurado',
                  'flavio_apurado','validos_apurados','lula_historico_pct',
                  'lula_projetado_pct','validos_projetados']]
-        st.dataframe(tab,hide_index=True,use_container_width=True)
+        tab.insert(0,'Município',
+                   tab['municipio'].map(lambda codigo:
+                       nome_municipio(selecionada,codigo,nomes_municipios or {})))
+        tab=tab.rename(columns={'municipio':'Código TSE','zona':'Zona eleitoral'})
+        apresentacao=tab.drop(columns=['Código TSE'])
+        st.dataframe(apresentacao,hide_index=True,use_container_width=True)
         st.download_button('Exportar tabela zonal (CSV)',
                            tab.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
                            file_name=f'zonas_{selecionada.lower()}_election_lab.csv',
