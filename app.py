@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from diagnostico_zonas import diagnosticar_zonas
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
@@ -172,6 +173,24 @@ def painel():
             st.caption('A série oficial só registra consultas realizadas enquanto o aplicativo está ativo. O armazenamento gratuito pode ser temporário.')
     else:
         st.info('O gráfico será preenchido à medida que novas parciais forem coletadas.')
+
+    with st.expander('Diagnóstico histórico por zona eleitoral (não é apuração ao vivo)'):
+        caminho_zonas = ROOT/'historico_zonas.csv'
+        if not caminho_zonas.exists():
+            caminho_zonas = ROOT/'data/historico_zonas.csv'
+        if caminho_zonas.exists():
+            @st.cache_data(show_spinner=False)
+            def ler_diagnostico(path, modificacao):
+                return pd.DataFrame(diagnosticar_zonas(path))
+            try:
+                dz = ler_diagnostico(str(caminho_zonas), caminho_zonas.stat().st_mtime_ns)
+                st.caption('Dispersão ponderada das preferências históricas entre zonas. '
+                           'Sem parciais por zona em 2026, não há correção geográfica em tempo real.')
+                st.dataframe(dz, hide_index=True, use_container_width=True)
+            except (OSError, ValueError) as exc:
+                st.error(f'Histórico territorial inválido: {exc}')
+        else:
+            st.info('Arquivo historico_zonas.csv não encontrado.')
 
     st.markdown('<div class="section-label">Detalhamento por UF</div>',unsafe_allow_html=True)
     if rel['linhas']:
