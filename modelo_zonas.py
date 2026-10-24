@@ -41,13 +41,15 @@ def prior_zona(registro,peso):
 
 
 def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
-                  intensidade=.35,universo=None,participacao=None):
+                  intensidade=.35,universo=None,participacao=None,
+                  peso_correcao_municipal=.25):
     """observadas: {(UF, mun5, zona4): {'lula','flavio','validos','secoes','secoes_total'}}.
 
     Universo, quando fornecido, é um cadastro de zonas da eleição-alvo sem
     votos futuros. Para o backtest, permite excluir zonas extintas de 2022.
     """
-    if not 0<=peso_2026<=1 or ajuste_volume<=0 or not 0<=intensidade<=1:
+    if (not 0<=peso_2026<=1 or ajuste_volume<=0 or
+        not 0<=intensidade<=1 or not 0<=peso_correcao_municipal<=1):
         raise ValueError('Parâmetros inválidos')
     refs={k:p for k,r in historicos.items() if (p:=prior_zona(r,peso_2026)) is not None and p[1]>0}
     nuf=defaultdict(float);vuf=defaultdict(float);countuf=defaultdict(int)
@@ -55,7 +57,11 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
         nuf[uf]+=p*v;vuf[uf]+=v;countuf[uf]+=1
     ufp={uf:nuf[uf]/v for uf,v in vuf.items() if v}
     chaves=(set(universo) if universo is not None else set(refs)) | set(observadas)
-    linhas=[];estad=defaultdict(lambda:{'observados':0.,'residuo':0.,'esperados':0.})
+    linhas=[]
+    estad=defaultdict(lambda:{'observados':0.,'residuo':0.,'esperados':0.})
+    mun=defaultdict(lambda:{'observados':0.,'residuo':0.,'esperados':0.})
+    diagnostico_uf=defaultdict(lambda:{'historico_lula_obs':0.,'hist_obs_volume':0.,
+                                      'historico_lula_total':0.,'hist_total_volume':0.})
     for chave in sorted(chaves):
         uf=chave[0]
         # Zonas novas: peso médio histórico estadual, sem inventar votos.
@@ -85,22 +91,49 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
                 total=max(v,detalhe['validos_finais_estimados'])
         faltante=max(0.,total-v)
         par=l+d
+        # O desvio precisa ser condicionado ao perfil histórico exato da
+        # zona observada. A parcial de uma zona tem menor confiabilidade
+        # que sua totalização; maturidade é a fração de seções processadas.
+        # Isso não substitui histórico SEÇÃO a SEÇÃO, que ainda não existe.
+        diagnostico_uf[uf]['historico_lula_total']+=p*volume
+        diagnostico_uf[uf]['hist_total_volume']+=volume
         if par and chave in refs:
+            maturidade=(progress**.5 if progress else 0.)
             residuo=max(-.15,min(.15,l/par-p))
-            estad[uf]['observados']+=par
-            estad[uf]['residuo']+=par*residuo
+            peso_efetivo=par*maturidade
+            estad[uf]['observados']+=peso_efetivo
+            estad[uf]['residuo']+=peso_efetivo*residuo
+            mun[chave[:2]]['observados']+=peso_efetivo
+            mun[chave[:2]]['residuo']+=peso_efetivo*residuo
+            diagnostico_uf[uf]['historico_lula_obs']+=p*volume
+            diagnostico_uf[uf]['hist_obs_volume']+=volume
         estad[uf]['esperados']+=volume
+        mun[chave[:2]]['esperados']+=volume
         linhas.append((chave,p,volume,l,d,v,faltante,progress,ts,detalhe))
     swing={}
     for uf,x in estad.items():
         cobertura=min(1.,x['observados']/max(1.,x['esperados']))
         confianca=min(.75,.10+.90*cobertura)
         swing[uf]=intensidade*confianca*x['residuo']/max(1.,x['observados'])
+    swing_municipal={}
+    for chave_m,x in mun.items():
+        # Municípios com poucas zonas observadas não impõem a todo o
+        # município um desvio forte. Limite de 50% no ganho de confiança.
+        cobertura=min(1.,x['observados']/max(1.,x['esperados']))
+        confianca=min(.5,.10+.7*cobertura)
+        swing_municipal[chave_m]=intensidade*confianca*(
+            x['residuo']/max(1.,x['observados']))
     por_uf=defaultdict(lambda:{'lula':0.,'flavio':0.,'apurados':0,
                                  'projetados':0.,'zonas_observadas':0,'zonas_total':0})
     saida=[]
     for chave,p,volume,l,d,v,faltante,progress,ts,detalhe in linhas:
-        uf=chave[0];frac=max(.01,min(.99,p+swing.get(uf,0)))
+        uf=chave[0]
+        # O componente local é complementar e regularizado: nunca
+        # substituir integralmente o ajuste estadual pela parcial de
+        # um único município com poucas seções.
+        peso_m=peso_correcao_municipal if mun[chave[:2]]['observados'] else 0.
+        delta=(1-peso_m)*swing.get(uf,0.)+peso_m*swing_municipal.get(chave[:2],0.)
+        frac=max(.01,min(.99,p+delta))
         pl=l+faltante*frac;pf=d+faltante*(1-frac)
         a=por_uf[uf];a['lula']+=pl;a['flavio']+=pf;a['apurados']+=v
         a['projetados']+=pl+pf;a['zonas_total']+=1
@@ -128,4 +161,14 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
     return {'linhas':saida,'por_uf':dict(por_uf),'lula':nl,'flavio':nf,
             'lula_pct':100*nl/(nl+nf) if nl+nf else None,
             'flavio_pct':100*nf/(nl+nf) if nl+nf else None,
-            'swing_estadual':swing}
+            'swing_estadual':swing,
+            'swing_municipal':swing_municipal,
+            'diagnostico_representatividade_uf':{
+                uf:{
+                    'lula_hist_observadas_pct':100*info['historico_lula_obs']/
+                        info['hist_obs_volume'] if info['hist_obs_volume'] else None,
+                    'lula_hist_total_pct':100*info['historico_lula_total']/
+                        info['hist_total_volume'] if info['hist_total_volume'] else None,
+                    'frac_zonas_referenciadas':info['hist_obs_volume']/
+                        info['hist_total_volume'] if info['hist_total_volume'] else 0.,
+                } for uf,info in diagnostico_uf.items()}}
