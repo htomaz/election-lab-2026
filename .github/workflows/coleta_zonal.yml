@@ -23,6 +23,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   coleta:
@@ -71,6 +72,12 @@ jobs:
           else:
               print('Sem cache anterior; iniciando coleta completa do escopo.')
           PY
+      - name: Recuperar backup persistente da última coleta disponível
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ATUAL: ${{ github.run_id }}
+        run: |
+          python backup_actions.py --destino dados_zonais_6258.json --ignorar-run "$RUN_ATUAL"
       - name: Coletar EA16 e EA20 oficiais de todas as zonas selecionadas
         env:
           ESCOPO: ${{ inputs.escopo }}
@@ -88,11 +95,23 @@ jobs:
         with:
           path: dados_zonais_6258.json
           key: election-lab-6258-zonas-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Registrar manifesto SHA-256 do backup
+        if: always() && hashFiles('dados_zonais_6258.json') != ''
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from hashlib import sha256
+          p=Path('dados_zonais_6258.json')
+          Path('snapshot.sha256').write_text(sha256(p.read_bytes()).hexdigest()+'\n',
+                                              encoding='ascii')
+          PY
       - name: Publicar snapshot para carregar no Streamlit
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: snapshot-zonal-6258
-          path: dados_zonais_6258.json
+          path: |
+            dados_zonais_6258.json
+            snapshot.sha256
           if-no-files-found: warn
-          retention-days: 3
+          retention-days: 30
