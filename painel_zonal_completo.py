@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from modelo_zonas import carregar_zonas
+from importar_participacao import carregar_participacao
 from coletor_zonal import coletar
 from tse import resultado_disponivel
 from motor_zonal_completo import executar, ler_snapshot
@@ -21,6 +22,11 @@ from municipios_tse import nome_municipio
 @st.cache_data(show_spinner=False)
 def _base_historica(caminho, mtime):
     return carregar_zonas(caminho)
+
+
+@st.cache_data(show_spinner=False)
+def _participacao_historica(caminho, mtime):
+    return carregar_participacao(caminho)
 
 
 @st.cache_data(show_spinner=False)
@@ -58,6 +64,20 @@ def exibir_modelo_zonal_completo(root,nomes=None):
         st.error('Histórico por zonas não encontrado.')
         return
     base=_base_historica(str(caminho),caminho.stat().st_mtime_ns)
+    arquivo_p=root/'historico_participacao_zonas.csv'
+    if arquivo_p.is_file():
+        try:
+            historico_participacao=_participacao_historica(
+                str(arquivo_p),arquivo_p.stat().st_mtime_ns)
+        except (OSError,ValueError) as exc:
+            st.error(f'Histórico de comparecimento inválido: {exc}')
+            return
+    else:
+        historico_participacao=None
+        st.info('Ainda não foi importado o histórico por zona de abstenção, '
+                'comparecimento, brancos e nulos. O modelo preserva o método '
+                'anterior de volume de votos, sem estimar essas parcelas individualmente. '
+                'Importe os arquivos oficiais detalhe_votacao_munzona de 2022 e 2026.')
     recebido=st.file_uploader('Carregar snapshot oficial EA20 por zona (JSON)',
                              type=['json'],key='upload_snapshot_zonas')
     origem='Prévia histórica'
@@ -89,7 +109,8 @@ def exibir_modelo_zonal_completo(root,nomes=None):
                 'não substitui o resultado oficial BR/UF.')
     try:
         resultado=executar(snap,base,nomes=nomes or {},
-                          exigir_catalogo_nacional=oficial)
+                          exigir_catalogo_nacional=oficial,
+                          participacao=historico_participacao)
     except (ValueError,KeyError,TypeError) as exc:
         st.error('Projeção territorial bloqueada: '+str(exc))
         return
@@ -110,6 +131,30 @@ def exibir_modelo_zonal_completo(root,nomes=None):
     if oficial and len({r['uf'] for r in snap.get('catalogo',[])})!=28:
         st.error('Cadastro oficial incompleto; não publicar projeção nacional.')
         return
+
+    if historico_participacao is not None:
+        proporcao=br['cobertura_modelo_participacao_pct']
+        st.caption(f'Cobertura do estimador comparecimento/brancos/nulos: '
+                   f'{br["zonas_modeladas_participacao"]} de {br["zonas_total"]} zonas '
+                   f'({proporcao:.1f}%). Zonas restantes usam a estimativa anterior '
+                   'de votos válidos.')
+        if proporcao<99.9:
+            st.warning('Participação insuficiente para agregar comparecimento, '
+                       'abstenção, brancos e nulos como totais nacionais. '
+                       'Os valores abaixo abrangem apenas zonas com dados completos.')
+        else:
+            d1,d2,d3,d4=st.columns(4)
+            d1.metric('Comparecimento final estimado',
+                      _formatar_numero(br['comparecimento_estimado_participacao']))
+            d2.metric('Abstenções finais estimadas',
+                      _formatar_numero(br['abstencoes_estimadas_participacao']))
+            d3.metric('Brancos finais estimados',
+                      _formatar_numero(br['brancos_estimados_participacao']))
+            d4.metric('Nulos finais estimados',
+                      _formatar_numero(br['nulos_estimados_participacao']))
+        st.caption('Participação e votos inválidos são estimativas exploratórias, '
+                   'não resultados oficiais nem taxas individualmente observadas '
+                   'dos eleitores que ainda não votaram.')
 
     # A previsão nacional é apresentada como resultado de um modelo, nunca
     # como parcial TSE ou como probabilidade calibrada de vitória.
@@ -169,6 +214,11 @@ def exibir_modelo_zonal_completo(root,nomes=None):
         'lula_projetado':'Lula final estimado',
         'flavio_projetado':'Flávio final estimado',
         'lula_projetado_pct':'Lula (%) estimado',
+        'modelo_volume':'Modelo de volume',
+        'comparecimento_final_estimado':'Comparecimento final estimado',
+        'abstencoes_finais_estimadas':'Abstenções finais estimadas',
+        'brancos_finais_estimados':'Brancos finais estimados',
+        'nulos_finais_estimados':'Nulos finais estimados',
         'historico_disponivel':'Histórico disponível',
     }
     quadro=pd.DataFrame([{nome:r.get(c) for c,nome in colunas.items()} for r in linhas])
