@@ -20,6 +20,8 @@ import os
 from pathlib import Path
 import tempfile
 import time
+from contextlib import contextmanager
+import fcntl
 
 import requests
 
@@ -127,11 +129,61 @@ def salvar_atomico(caminho,dados):
             os.unlink(temp)
 
 
+@contextmanager
+def _arquivo_bloqueado(caminho):
+    """Evita coletas concorrentes sobre o mesmo snapshot no Linux do Streamlit.
+
+    Lock não bloqueante: quem já está coletando continua, o segundo operador
+    recebe diagnóstico e não arrisca perder progresso por concorrência.
+    """
+    alvo=Path(caminho)
+    alvo.parent.mkdir(parents=True,exist_ok=True)
+    with (alvo.parent/(alvo.name+'.lock')).open('a+b') as arq:
+        try:
+            fcntl.flock(arq.fileno(),fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError('Já existe uma coleta usando este arquivo') from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(arq.fileno(),fcntl.LOCK_UN)
+
+
+def coletar(caminho, uf=None, todas=False, limite=300, taxa=12.,
+            concorrencia=8, renovar_apos=120, agora=None, origem=None,
+            coletar_zona=None, permitir_antes=False, clock=None, sleep=None):
+    """Executa coleta com exclusão mútua por arquivo, inclusive na UI."""
+    with _arquivo_bloqueado(caminho):
+        return _coletar_impl(
+            caminho,uf=uf,todas=todas,limite=limite,taxa=taxa,
+            concorrencia=concorrencia,renovar_apos=renovar_apos,agora=agora,
+            origem=origem,coletar_zona=coletar_zona,
+            permitir_antes=permitir_antes,clock=clock,sleep=sleep)
+
+
+def _catalogo_verificado_interno(catalogo):
+    """Somente formato e cobertura: NÃO verifica assinatura/proveniência."""
+    return len(catalogo)>=5000 and {k[0] for k in catalogo}==set(UFS)
+
+
+def _cat_existente(dados):
+    anterior={}
+    for item in dados.get('catalogo',[]):
+        try:
+            k=chave_zona(item['uf'],item['municipio'],item['zona'])
+            if k in anterior:
+                return {}
+            anterior[k]=item
+        except (KeyError,ValueError,TypeError):
+            return {}
+    return anterior
+
+
 def _is_bloqueio(erro):
     return bool(erro and any(c in str(erro) for c in BLOQUEANTES))
 
 
-def coletar(caminho, uf=None, todas=False, limite=300, taxa=12.,
+def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
             concorrencia=8, renovar_apos=120, agora=None, origem=None,
             coletar_zona=None, permitir_antes=False, clock=None, sleep=None):
     """Consulta até limite zonas priorizando faltantes/vencidas.
@@ -152,15 +204,47 @@ def coletar(caminho, uf=None, todas=False, limite=300, taxa=12.,
         raise ValueError('A apuração oficial de 25/10 ainda não começou')
     clock=clock or time.time
     sleep=sleep or time.sleep
-    catalogo=origem if origem is not None else baixar_catalogo()
+    dados=carregar_arquivo(caminho)
+    clock=clock or time.time
+    ultimo_catalogo=_cat_existente(dados)
+    data_cat=dados.get('catalogo_atualizado_em')
+    idade_cat=clock()-float(data_cat) if data_cat is not None else float('inf')
+    catalogo_recuperavel=(
+        dados.get('catalogo_origem')=='EA16_TSE_3221' and
+        0<=idade_cat<=21600 and bool(ultimo_catalogo)
+    )
+    renovou_catalogo=False
+    if origem is not None:
+        # Testes, não é fonte oficial; não mesclar com catálogos reais.
+        catalogo=dict(origem)
+        dados['catalogo_origem']='CATALOGO_INJETADO_TESTE'
+    else:
+        escopo=uf.upper() if uf else None
+        ja_tem=(
+            bool({k for k in ultimo_catalogo if k[0]==escopo})
+            if escopo else _catalogo_verificado_interno(ultimo_catalogo)
+        )
+        if catalogo_recuperavel and ja_tem:
+            catalogo=ultimo_catalogo
+        else:
+            # Uma única UF NÃO precisa baixar os 28 catálogos. Preserve
+            # o universo já conhecido para não apagar votos de outras UFs.
+            novos=baixar_catalogo(abrangencias=[escopo] if escopo else UFS)
+            renovou_catalogo=True
+            if escopo and dados.get('catalogo_origem')=='EA16_TSE_3221':
+                catalogo={k:v for k,v in ultimo_catalogo.items() if k[0]!=escopo}
+                catalogo.update(novos)
+            else:
+                catalogo=novos
+        dados['catalogo_origem']='EA16_TSE_3221'
     if not catalogo:
         raise ValueError('Catálogo vazio')
     invalidas={k[0] for k in catalogo} - set(UFS)
     if invalidas:
         raise ValueError(f'UFs inválidas: {invalidas}')
-    dados=carregar_arquivo(caminho)
+    if origem is None and (renovou_catalogo or not data_cat):
+        dados['catalogo_atualizado_em']=clock()
     dados['catalogo']=[catalogo[k] for k in sorted(catalogo)]
-    dados['catalogo_origem']='EA16_TSE_3221' if origem is None else 'CATALOGO_INJETADO_TESTE'
     antigo=dados['observacoes']
     # Atribuir novas chaves somente depois de validar o catálogo. Elimina extintas.
     conjunto={id_zona(k) for k in catalogo}
