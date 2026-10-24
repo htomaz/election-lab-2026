@@ -2,6 +2,8 @@
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
+import os
+import subprocess
 from html import escape
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -378,4 +380,21 @@ with aba2:
 with aba3:
     historicos()
 st.divider()
-st.caption('Election Lab 2026 v0.4 · Projeto independente. Resultado apurado = fonte TSE; projeções = estimativas experimentais, não oficiais.')
+def commit_publicado():
+    # Mostra a versão realmente executada para comparar com o manifesto
+    # release-candidate.json. Não depende de senha/token nem faz requests.
+    sha=os.environ.get('STREAMLIT_GIT_COMMIT_SHA') or os.environ.get('GITHUB_SHA')
+    if not sha:
+        try:
+            sha=subprocess.check_output(['git','rev-parse','HEAD'],
+                                        cwd=ROOT,text=True,
+                                        stderr=subprocess.DEVNULL,
+                                        timeout=3).strip()
+        except (OSError,subprocess.SubprocessError):
+            sha=None
+    return sha[:12] if sha else 'não identificado'
+
+
+st.caption('Election Lab 2026 · commit '+commit_publicado()
+           +' · Projeto independente. Resultado apurado = fonte TSE; '
+           'projeções = estimativas experimentais, não oficiais.')
