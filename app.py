@@ -349,7 +349,9 @@ with aba2:
     if erro_nomes:
         st.info('Cadastro municipal não carregado nesta sessão; '
                 'os códigos TSE serão exibidos apenas onde o nome estiver ausente.')
-    exibir_modelo_zonal_completo(ROOT, nomes=nomes_municipios)
+    exibir_modelo_zonal_completo(ROOT, nomes=nomes_municipios,
+                                peso_2026=peso,ajuste_volume=vol,
+                                intensidade=intensidade)
 with aba3:
     historicos()
 st.divider()
