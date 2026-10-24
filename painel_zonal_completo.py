@@ -14,7 +14,8 @@ import streamlit as st
 from modelo_zonas import carregar_zonas
 from importar_participacao import carregar_participacao
 from coletor_zonal import coletar
-from tse import resultado_disponivel
+from tse import resultado_disponivel, coletar as coletar_totalizacoes
+from auditoria_snapshot_zonal import auditar_parciais
 from motor_zonal_completo import executar, ler_snapshot
 from municipios_tse import nome_municipio
 from sensibilidade_zonal import faixa_sensibilidade
@@ -146,11 +147,44 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
     elif br['cobertura_zonas_pct'] < 80:
         st.warning('Cobertura zonal incompleta. O valor estimado para as demais '
                    'localidades ainda depende predominantemente do histórico.')
-    nacional_habilitado=bool(not oficial or br['catalogo_oficial_nacional'])
+    nacional_habilitado=bool((not oficial or br['catalogo_oficial_nacional'])
+                            and not auditoria_bloqueou)
     if oficial and not nacional_habilitado:
         st.warning('Cadastro EA16 parcial: os números abaixo representam ' 
                    'somente as localidades cadastradas, não todo o Brasil.')
 
+    auditoria_bloqueou=False
+    if oficial and resultado_disponivel():
+        with st.expander('Conciliação independente com EA20 das UFs e Brasil'):
+            st.caption('Consulta manual adicional ao TSE (29 agregados). '
+                       'Os horários podem não ser síncronos; dados incompatíveis '
+                       'suspendem a projeção desta leitura.')
+            if st.button('Auditar agora a coleta por zonas vs UF/BR',
+                         key='auditar_tse_zonas_ufs'):
+                try:
+                    with st.spinner('Consultando resultados estaduais e nacional...'):
+                        totais,erros=coletar_totalizacoes()
+                    if 'BR' not in totais:
+                        st.error('Arquivo oficial BR indisponível; '
+                                 'não é possível concluir auditoria.')
+                    else:
+                        audit=auditar_parciais(snap,totais)
+                        st.write('Brasil: '+audit['nacional']['status'])
+                        st.dataframe(pd.DataFrame(audit['por_uf']),
+                                     hide_index=True,use_container_width=True)
+                        if audit['bloqueantes']:
+                            auditoria_bloqueou=True
+                            st.error('Divergências impeditivas em: '+
+                                     ', '.join(audit['bloqueantes']))
+                        else:
+                            st.info('Nenhuma divergência impeditiva detectada '
+                                    'nas consultas recebidas. Isso não implica '
+                                    'sincronismo nem autenticação criptográfica.')
+                        if erros:
+                            st.caption('Erros/ausências da coleta agregada: '+
+                                       str(erros)[:250])
+                except (ValueError,TypeError,KeyError) as exc:
+                    st.error('Falha na conciliação: '+str(exc))
     if historico_participacao is not None:
         proporcao=br['cobertura_modelo_participacao_pct']
         st.caption(f'Cobertura do estimador comparecimento/brancos/nulos: '
