@@ -72,6 +72,9 @@ jobs:
       - name: Simular motor completo de 6.292 zonas de 0 a 100 por cento
         timeout-minutes: 3
         run: python simulacao_operacional.py
+      - name: Ensaiar coleta incremental de 6.292 zonas sem rede
+        timeout-minutes: 3
+        run: python simulacao_coletor.py
       - name: Salvar diagnósticos retrospectivos
         if: always()
         uses: actions/upload-artifact@v4
