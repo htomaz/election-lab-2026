@@ -83,6 +83,44 @@ class TestAprimoramentosZonais(unittest.TestCase):
         self.assertLess(abs(z['swing_estadual']['SP']),.02)
         self.assertIn('diagnostico_representatividade_uf',z)
 
+    def test_uf_observada_informa_comparecimento_das_outras_zonas(self):
+        from modelo_zonas import calibrar_taxas_uf_observadas
+        a=('SP','71072','0001')
+        b=('SP','71072','0002')
+        h={
+            a:{(2022,2):{'lula':4800,'direita':4800,'validos':9600},
+               (2026,1):{'lula':4800,'direita':4800,'validos':9600}},
+            b:{(2022,2):{'lula':4800,'direita':4800,'validos':9600},
+               (2026,1):{'lula':4800,'direita':4800,'validos':9600}}
+        }
+        part={}
+        for k in (a,b):
+            part[k]={(2022,2):{'aptos':20000,'comparecimento':16000,
+                                 'abstencoes':4000,'validos':15000,
+                                 'brancos':400,'nulos':600},
+                     (2026,1):{'aptos':20000,'comparecimento':16000,
+                                 'abstencoes':4000,'validos':15000,
+                                 'brancos':400,'nulos':600}}
+        obs={a:{'lula':7000,'flavio':7000,'validos':14000,
+                'aptos':20000,'aptos_processados':18000,
+                'comparecimento':15000,'abstencoes':3000,
+                'brancos':400,'nulos':600,
+                'secoes':9,'secoes_total':10}}
+        signal=calibrar_taxas_uf_observadas(obs,part,intensidade=.7)
+        self.assertGreater(signal['SP']['turnout'],0)
+        with_obs=projetar_zonas(obs,h,universo={a,b},
+                               participacao=part,intensidade=.7)
+        # Para isolar o efeito da UF, compara o mesmo snapshot com ajuste
+        # aplicado ao modelo versus cálculo manual sem ajuste de UF.
+        from modelo_participacao import estimar_volume_zona
+        base=estimar_volume_zona(part[b],intensidade=.7)
+        zona_b=next(x for x in with_obs['linhas'] if x['zona']=='0002')
+        self.assertGreater(zona_b['validos_projetados'],
+                           base['validos_finais_estimados'])
+        self.assertAlmostEqual(
+            with_obs['ajuste_comparecimento_uf']['SP']['turnout'],
+            signal['SP']['turnout'])
+
     def test_holdout_muito_pequeno_sem_erro_de_cobertura(self):
         linhas=calibrar(seeds=range(1),etapas=(10,100),intensidades=(0,.5))
         # 28 UFs x 3 modelos, cada UF testada somente fora do treino.
