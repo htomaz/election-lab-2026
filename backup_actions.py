@@ -58,6 +58,10 @@ def extrair_artifact(blob):
         nomes=set(z.namelist())
         if NOME_JSON not in nomes or 'snapshot.sha256' not in nomes:
             raise ValueError('Backup sem JSON e SHA-256 obrigatório')
+        if z.getinfo(NOME_JSON).file_size>MAX_BYTES or (
+            z.getinfo('snapshot.sha256').file_size>128
+        ):
+            raise ValueError('Backup ZIP excede limites de extração')
         with z.open(NOME_JSON) as fonte:
             bruto=fonte.read(MAX_BYTES+1)
         if len(bruto)>MAX_BYTES:
