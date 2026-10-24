@@ -7,6 +7,7 @@ Snapshot pode vir do coletor local ou de upload realizado pelo operador.
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -149,11 +150,21 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                    'localidades ainda depende predominantemente do histórico.')
     nacional_habilitado=bool((not oficial or br['catalogo_oficial_nacional'])
                             and not auditoria_bloqueou)
+    if auditoria_bloqueou:
+        st.error('Projeções agregadas suspensas nesta versão do snapshot: '
+                 'auditoria EA20 apontou divergências entre zonas e UF/BR. '
+                 'Consulte o diagnóstico e atualize os dados.')
     if oficial and not nacional_habilitado:
         st.warning('Cadastro EA16 parcial: os números abaixo representam ' 
                    'somente as localidades cadastradas, não todo o Brasil.')
 
-    auditoria_bloqueou=False
+    hash_snapshot=hashlib.sha256(json.dumps(
+        snap,sort_keys=True,ensure_ascii=False).encode('utf-8')).hexdigest()
+    auditoria_anterior=st.session_state.get('auditoria_zonal_ultima')
+    auditoria_bloqueou=bool(
+        auditoria_anterior and
+        auditoria_anterior.get('hash_snapshot')==hash_snapshot and
+        auditoria_anterior.get('bloqueantes'))
     if oficial and resultado_disponivel():
         with st.expander('Conciliação independente com EA20 das UFs e Brasil'):
             st.caption('Consulta manual adicional ao TSE (29 agregados). '
@@ -169,6 +180,11 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                                  'não é possível concluir auditoria.')
                     else:
                         audit=auditar_parciais(snap,totais)
+                        st.session_state['auditoria_zonal_ultima']={
+                            'hash_snapshot':hash_snapshot,
+                            'bloqueantes':audit['bloqueantes'],
+                            'nacional':audit['nacional']['status']
+                        }
                         st.write('Brasil: '+audit['nacional']['status'])
                         st.dataframe(pd.DataFrame(audit['por_uf']),
                                      hide_index=True,use_container_width=True)
@@ -212,9 +228,10 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
     # A previsão nacional é apresentada como resultado de um modelo, nunca
     # como parcial TSE ou como probabilidade calibrada de vitória.
     st.markdown('#### '+('Soma nacional estimada' if nacional_habilitado else 'Soma SOMENTE das UFs cadastradas'))
-    ca,cb=st.columns(2)
-    ca.metric('Lula · votos finais estimados',_formatar_numero(br['lula_estimado']))
-    cb.metric('Flávio · votos finais estimados',_formatar_numero(br['flavio_estimado']))
+    if not auditoria_bloqueou:
+        ca,cb=st.columns(2)
+        ca.metric('Lula · votos finais estimados',_formatar_numero(br['lula_estimado']))
+        cb.metric('Flávio · votos finais estimados',_formatar_numero(br['flavio_estimado']))
     st.caption('Valores exclusivamente modelados. '+('Não representam apuração oficial.' if nacional_habilitado else 'Cadastro incompleto: NÃO representam o Brasil.'))
 
     with st.expander(('Cenários nacionais' if nacional_habilitado else 'Cenários parciais das UFs')+' (não probabilísticos)'):
