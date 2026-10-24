@@ -68,12 +68,45 @@ def normalizar_ea20(payload: dict, uf: str) -> dict:
     ts = as_int(secoes.get('ts'))
     if st < 0 or ts < st or (total > 0 and (ts == 0 or st == 0)):
         raise ValueError(f'{uf}: quantidade inválida de seções')
+    # EA20 disponibiliza eleitorado e comparecimento por abrangência.
+    # e.te é o eleitorado total; e.est é o eleitorado das seções
+    # totalizadas (NÃO o comparecimento); e.c e e.a são presença e
+    # abstenção nas seções já totalizadas.
+    dados_eleitorado = payload.get('e') or {}
+    def opcional(bloco, campo):
+        return as_int(bloco[campo]) if campo in bloco and bloco[campo] is not None else None
+    aptos = opcional(dados_eleitorado,'te')
+    aptos_processados = opcional(dados_eleitorado,'est')
+    comparecimento = opcional(dados_eleitorado,'c')
+    abstencoes = opcional(dados_eleitorado,'a')
+    brancos = opcional(campos_votos,'vb')
+    nulos = opcional(campos_votos,'tvn')
+    total_votos = opcional(campos_votos,'tv')
+    if any(x is not None and x < 0 for x in
+           (aptos,aptos_processados,comparecimento,abstencoes,
+            brancos,nulos,total_votos)):
+        raise ValueError(f'{uf}: dados negativos de comparecimento/abstenção')
+    if aptos is not None and aptos_processados is not None and aptos_processados > aptos:
+        raise ValueError(f'{uf}: eleitorado processado supera eleitorado total')
+    if (aptos_processados is not None and comparecimento is not None and
+        abstencoes is not None and
+        comparecimento+abstencoes > aptos_processados):
+        raise ValueError(f'{uf}: comparecimento + abstenção supera eleitorado processado')
+    if (total_votos is not None and
+        any(x is not None for x in (brancos,nulos)) and
+        total + (brancos or 0)+(nulos or 0)>total_votos):
+        raise ValueError(f'{uf}: votos válidos, brancos e nulos superam total de votos')
+    if comparecimento is not None and total_votos is not None and total_votos>comparecimento:
+        raise ValueError(f'{uf}: votos totais superam comparecimento')
     data = str(payload.get('dg',''))
     hora = str(payload.get('hg',''))
     return {'uf':uf,'lula':votos.get(NUM_LULA, 0),'flavio':votos.get(NUM_FLAVIO, 0),
             'validos':total,'secoes':st,'secoes_total':ts,
             'geracao':f'{data} {hora}'.strip(),'nomes':nomes,'url':url_resultado(uf),
-            'outros':max(0,total-votos.get(NUM_LULA,0)-votos.get(NUM_FLAVIO,0))}
+            'outros':max(0,total-votos.get(NUM_LULA,0)-votos.get(NUM_FLAVIO,0)),
+            'aptos':aptos,'aptos_processados':aptos_processados,
+            'comparecimento':comparecimento,'abstencoes':abstencoes,
+            'brancos':brancos,'nulos':nulos,'total_votos':total_votos}
 
 
 def resultado_disponivel(agora=None):
