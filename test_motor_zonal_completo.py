@@ -22,12 +22,12 @@ class TestMotorCompleto(unittest.TestCase):
                        'observacoes':{}}
         self.nomes={('SP','71072'):'SÃO PAULO'}
 
-    def teste(self,**kwargs):
+    def _calcular_teste(self,**kwargs):
         return executar(self.snapshot,self.historico,nomes=self.nomes,
                         agora=self.now,exigir_catalogo_nacional=False,**kwargs)
 
     def test_sem_observacoes_mantem_todas_as_zonas(self):
-        r=self.teste()
+        r=self._calcular_teste()
         self.assertEqual(len(r['linhas']),2)
         self.assertEqual(r['brasil']['zonas_consultadas'],0)
         self.assertTrue(all(v['status']=='não consultada' for v in r['linhas']))
@@ -39,7 +39,7 @@ class TestMotorCompleto(unittest.TestCase):
             'lula':65,'flavio':35,'validos':100,
             'secoes':2,'secoes_total':2,'capturado_em':self.now
         }
-        r=self.teste()
+        r=self._calcular_teste()
         por_zona={linha['zona']:linha for linha in r['linhas']}
         self.assertAlmostEqual(por_zona['0001']['lula_projetado'],65)
         self.assertAlmostEqual(por_zona['0001']['flavio_projetado'],35)
@@ -62,7 +62,7 @@ class TestMotorCompleto(unittest.TestCase):
         self.snapshot['observacoes'][id_zona(self.z2)]={
             'lula':15,'flavio':85,'validos':100,'secoes':2,
             'secoes_total':2,'capturado_em':self.now}
-        r=self.teste()
+        r=self._calcular_teste()
         self.assertEqual(r['brasil']['lula_apurado'],80)
         self.assertEqual(r['brasil']['flavio_apurado'],120)
         self.assertAlmostEqual(r['brasil']['lula_estimado'],80)
@@ -73,7 +73,7 @@ class TestMotorCompleto(unittest.TestCase):
         self.snapshot['observacoes'][id_zona(self.z1)]={
             'lula':65,'flavio':35,'validos':100,'secoes':2,
             'secoes_total':2,'capturado_em':self.now-2400}
-        r=self.teste()
+        r=self._calcular_teste()
         self.assertEqual(r['brasil']['lula_apurado'],0)
         self.assertEqual(r['brasil']['zonas_desatualizadas'],1)
         self.assertEqual(r['brasil']['zonas_consultadas'],0)
@@ -89,12 +89,12 @@ class TestMotorCompleto(unittest.TestCase):
             'lula':65,'flavio':65,'validos':100,'secoes':2,
             'secoes_total':2,'capturado_em':self.now}
         with self.assertRaisesRegex(ValueError,'inválidas'):
-            self.teste()
+            self._calcular_teste()
 
     def test_zona_sem_historico_usa_reserva_estadual(self):
         self.snapshot['catalogo'].append({
             'uf':'SP','municipio':'71072','zona':'0003'})
-        r=self.teste()
+        r=self._calcular_teste()
         self.assertEqual(len(r['linhas']),3)
         zona3=next(x for x in r['linhas'] if x['zona']=='0003')
         self.assertFalse(zona3['cobertura_historica'])
@@ -104,7 +104,7 @@ class TestMotorCompleto(unittest.TestCase):
     def test_ano_errado_impede_mistura_primeiro_turno(self):
         self.snapshot['eleicao']=6257
         with self.assertRaisesRegex(ValueError,'não corresponde'):
-            self.teste()
+            self._calcular_teste()
 
     def test_reconstrucao_nacional_2026t1_se_todas_zonas_contadas(self):
         # Teste algébrico com o resultado final já conhecido de 2026T1:
