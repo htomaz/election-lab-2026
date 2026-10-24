@@ -24,7 +24,7 @@ class TestColetorZonal(unittest.TestCase):
                 'secoes':1,'secoes_total':1,
                 'geracao':'25/10/2026 18:00:00'},None
 
-    def testar(self,caminho,**kwargs):
+    def _executar_teste(self,caminho,**kwargs):
         return coletar(caminho,uf='SP',limite=50,origem=self.catal,
                        coletar_zona=self.buscar,permitir_antes=True,
                        clock=lambda:self.tempo,sleep=lambda s:None,
@@ -33,23 +33,23 @@ class TestColetorZonal(unittest.TestCase):
     def test_persistencia_incremental_sem_reconsultar(self):
         with tempfile.TemporaryDirectory() as dir:
             arq=Path(dir)/'dados_zonais_6258.json'
-            a=self.testar(arq)
+            a=self._executar_teste(arq)
             self.assertEqual(a['requisicoes'],2)
             self.assertEqual(a['atualizadas'],2)
             dados=json.loads(arq.read_text(encoding='utf-8'))
             self.assertEqual(len(dados['observacoes']),2)
             self.assertTrue(dados['catalogo_origem']=='EA12_TSE_6258')
-            b=self.testar(arq)
+            b=self._executar_teste(arq)
             self.assertEqual(b['requisicoes'],0)
             self.assertEqual(len(self.leituras),2)
             self.tempo+=200
-            c=self.testar(arq)
+            c=self._executar_teste(arq)
             self.assertEqual(c['requisicoes'],2)
 
     def test_erro_404_interrompe_sem_apagar_snapshot(self):
         with tempfile.TemporaryDirectory() as dir:
             arq=Path(dir)/'dados.json'
-            self.testar(arq)
+            self._executar_teste(arq)
             self.tempo+=500
 
             def erro(*key):
@@ -73,7 +73,7 @@ class TestColetorZonal(unittest.TestCase):
     def test_rejeita_excesso_taxa(self):
         with tempfile.TemporaryDirectory() as dir:
             with self.assertRaisesRegex(ValueError,'faixa segura'):
-                self.testar(Path(dir)/'dados.json',taxa=150)
+                self._executar_teste(Path(dir)/'dados.json',taxa=150)
 
     def test_cat_ea12_uf_municipio_zona_com_zeros(self):
         p={'abr':[{'cd':'SP','mu':[{'cd':'71072','nm':'SÃO PAULO',
