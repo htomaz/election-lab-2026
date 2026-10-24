@@ -49,8 +49,15 @@ def montar():
             raise ValueError('Arquivo obrigatório ausente: '+item)
         files[item]=sha(item)
     h=commit()
-    if os.getenv('GITHUB_SHA') and os.getenv('GITHUB_SHA')!=h:
-        raise ValueError('Commit do checkout diferente do SHA do workflow')
+    # No evento pull_request, GITHUB_SHA aponta para merge sintético,
+    # diferente do HEAD real da branch auditada. Comparar o SHA head
+    # autorizado pelo evento/checkout para garantir a MESMA versão testada.
+    esperado=os.getenv('ELECTION_LAB_EXPECTED_SHA') or (
+        os.getenv('GITHUB_SHA') if os.getenv('GITHUB_EVENT_NAME')!='pull_request'
+        else None
+    )
+    if esperado and esperado!=h:
+        raise ValueError('Commit do checkout difere da versão auditada no workflow')
     return {'projeto':'Election Lab 2026',
             'tipo':'release_candidate_nao_publicada',
             'branch':BRANCH,'commit':h,
