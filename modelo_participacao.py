@@ -68,7 +68,8 @@ def referencia_historica(registro,peso_2026=.75):
 
 
 def estimar_volume_zona(registro,observado=None,peso_2026=.75,
-                        intensidade=.35,ajuste_eleitorado=1.):
+                        intensidade=.35,ajuste_eleitorado=1.,
+                        ajuste_taxas_uf=None):
     """Estima volume final preservando parciais oficiais sem contá-las duas vezes.
 
     Em tempo real, observa e.te, e.est, e.c, e.a, v.vv, v.vb, v.tvn.
@@ -126,10 +127,14 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
     # Em uma parcial territorial enviesada, jamais transmitir todo o
     # desvio de turnout ou válidos: fatores limitados a 35% padrão.
     ganho=intensidade*min(1.,cobertura/.25)
-    taxa_t=prior['turnout']
-    taxa_v=prior['valid']
-    taxa_b=prior['blank']
-    taxa_n=prior['null']
+    # Ajuste agregado apenas com zonas OFICIALMENTE observadas da mesma
+    # UF. É limitado/encolhido antes de chegar aqui; não transfere
+    # automaticamente uma zona atípica para o restante do estado.
+    a_uf=ajuste_taxas_uf or {}
+    taxa_t=limitar(prior['turnout']+a_uf.get('turnout',0.),0.,1.)
+    taxa_v=limitar(prior['valid']+a_uf.get('valid',0.),0.,1.)
+    taxa_b=limitar(prior['blank']+a_uf.get('blank',0.),0.,1.)
+    taxa_n=limitar(prior['null']+a_uf.get('null',0.),0.,1.)
     if processados>0:
         turnout_obs=comparecimento/processados
         taxa_t=limitar(prior['turnout']+
@@ -177,6 +182,8 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
         'validos_finais_estimados':votos_obs+validos_rest,
         'validos_restantes_estimados':validos_rest,
         'ganho_taxas':ganho,
+        'ajuste_uf_incorporado':{k:float(a_uf.get(k,0.)) for k in
+                                ('turnout','valid','blank','null')},
     }
 
 
