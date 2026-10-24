@@ -92,8 +92,9 @@ def executar(snapshot, historico, nomes=None, agora=None,
             if not math.isfinite(capturado) or capturado > agora+60:
                 raise ValueError('horário de coleta inválido')
             if agora-capturado > idade_max:
+                # O voto oficialmente observado continua sendo um piso válido.
+                # Não descartá-lo por falta de uma consulta recente.
                 idade_expirada.append(ident)
-                continue
             l,f,v = (int(item[c]) for c in ('lula','flavio','validos'))
             s,ts = (int(item[c]) for c in ('secoes','secoes_total'))
             if min(l,f,v,s,ts) < 0 or l+f > v or s>ts or (v>0 and (ts==0 or s==0)):
@@ -129,7 +130,9 @@ def executar(snapshot, historico, nomes=None, agora=None,
         chave = chave_zona(linha['uf'],linha['municipio'],linha['zona'])
         obs = observadas.get(chave)
         if obs is None:
-            status = 'não consultada' if id_zona(chave) not in expiradas else 'desatualizada'
+            status = 'não consultada'
+        elif id_zona(chave) in expiradas:
+            status = 'desatualizada'
         elif obs['secoes_total'] > 0 and obs['secoes'] == obs['secoes_total']:
             status = 'concluída'
         elif obs['secoes'] > 0:
@@ -151,8 +154,10 @@ def executar(snapshot, historico, nomes=None, agora=None,
             acc['lula_estimado']+=linha['lula_projetado']
             acc['flavio_estimado']+=linha['flavio_projetado']
             acc['zonas_total']+=1
-            acc['zonas_consultadas']+=int(obs is not None)
-            acc['zonas_concluidas']+=int(status=='concluída')
+            acc['zonas_consultadas']+=int(obs is not None and id_zona(chave) not in expiradas)
+            acc['zonas_concluidas']+=int(obs is not None and
+                                        obs['secoes_total']>0 and
+                                        obs['secoes']==obs['secoes_total'])
         if obs is not None:
             estados[chave[0]]['secoes_apuradas_consultadas']+=obs['secoes']
             estados[chave[0]]['secoes_total_consultadas']+=obs['secoes_total']
@@ -166,7 +171,8 @@ def executar(snapshot, historico, nomes=None, agora=None,
         'lula_apurado':sum(x['lula_apurado'] for x in estados.values()),
         'flavio_apurado':sum(x['flavio_apurado'] for x in estados.values()),
         'zonas_total':len(catalogo),
-        'zonas_consultadas':len(observadas),
+        'zonas_consultadas':len(observadas)-len(idade_expirada),
+        'zonas_com_observacao':len(observadas),
         'zonas_desatualizadas':len(idade_expirada),
         'zonas_concluidas':sum(x['zonas_concluidas'] for x in estados.values()),
         'catalogo_oficial_nacional':completo,
@@ -175,7 +181,7 @@ def executar(snapshot, historico, nomes=None, agora=None,
     den=nacionais['lula_estimado']+nacionais['flavio_estimado']
     nacionais['lula_pct_estimado']=100*nacionais['lula_estimado']/den if den else None
     nacionais['flavio_pct_estimado']=100*nacionais['flavio_estimado']/den if den else None
-    nacionais['cobertura_zonas_pct']=100*len(observadas)/len(catalogo)
+    nacionais['cobertura_zonas_pct']=100*(len(observadas)-len(idade_expirada))/len(catalogo)
     nacionais['apuracao_integral_zonas']=(nacionais['zonas_concluidas']==len(catalogo))
     nacionais['metodologia']='Projeção experimental, não é resultado oficial do TSE'
     return {'linhas':linhas,'municipios':dict(municipios),'ufs':dict(estados),
