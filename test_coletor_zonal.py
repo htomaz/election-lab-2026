@@ -78,13 +78,13 @@ class TestColetorZonal(unittest.TestCase):
     def test_cat_ea16_uf_municipio_zona_com_zeros(self):
         p={'abr':[{'cd':'SP','mu':[{'cd':'71072','nm':'SÃO PAULO',
                                   'zon':[{'cd':'1','sec':[{'ns':'0001'}]},{'cd':'0237','sec':[]}]}]}]}
-        x=catalogar_ea12(p)
+        x=catalogar_ea16(p)
         self.assertEqual(len(x),2)
         self.assertEqual(x[self.a]['nome'],'SÃO PAULO')
         self.assertEqual(x[self.a]['secoes_cadastradas_ea16'],1)
         self.assertEqual(x[('SP','71072','0237')]['zona'],'0237')
         with self.assertRaisesRegex(ValueError,'duplicada'):
-            catalogar_ea12({'abr':[{'cd':'SP','mu':[{
+            catalogar_ea16({'abr':[{'cd':'SP','mu':[{
                 'cd':'71072','zon':[{'cd':'1','sec':[]},{'cd':'0001','sec':[]}]}]}]})
 
 
