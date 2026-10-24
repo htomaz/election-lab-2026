@@ -19,7 +19,8 @@ ARQUIVOS=(
     'app.py','tse.py','modelo.py','modelo_zonas.py',
     'modelo_participacao.py','motor_zonal_completo.py',
     'painel_zonal_completo.py','coletor_zonal.py','registro.py',
-    'proveniencia_tse.py','backup_actions.py','requirements.txt',
+    'proveniencia_tse.py','assinatura_jws.py','backup_actions.py',
+    'release_candidate.py','visual_e2e.py','requirements.txt',
     'historico_zonas.csv','historico_ufs.csv',
     'historico_participacao_zonas.csv',
 )
