@@ -45,7 +45,7 @@ Para consultar uma UF por lote (recomendada a primeira homologação):
 python coletor_zonal.py --uf SP --limite 300
 ```
 
-Para consultar **todas** as zonas registradas no EA12 (até 10.000
+Para consultar **todas** as zonas registradas no EA16 (até 10.000
 requisições, mas nunca mais do que o número de zonas no catálogo):
 
 ```bash
@@ -68,9 +68,11 @@ persistente deverá ser integrado para operação 24/7.
 
 - O cadastro completo de 2026T2 deve vir do **EA16 do pleito 3221**, com um arquivo por UF. EA12 é utilizado para nomear municípios, não para enumerar zonas.
   A listagem do primeiro turno não prova as zonas do segundo.
-- O motor ignora observações com mais de 15 minutos no momento da
-  atualização. Uma zona sem observação recente é estimada somente
-  pelo histórico; nunca é exibida como já apurada.
+- O motor identifica observações coletadas há mais de 15 minutos e as
+  rotula como **desatualizadas**. Os votos oficiais anteriormente
+  registrados permanecem como piso observado; não são apagados por
+  falta de uma coleta recente. Apenas a métrica de cobertura recente
+  deixa de contá-los como atualizados.
 - **Cobertura de consultas** não é igual a **percentual de seções
   apuradas**. O primeiro mede zonas consultadas; o segundo depende do
   total de seções eleitorais.
@@ -93,7 +95,7 @@ persistente deverá ser integrado para operação 24/7.
 ## Próxima etapa necessária
 
 Validação com parciais **reais do segundo turno** e avaliação de
-tempo de coleta, cobertura efetiva do catálogo EA12, consistência
+tempo de coleta, cobertura efetiva do catálogo EA16, consistência
 com os totais oficiais estaduais, comportamento quando uma zona
 regride ou quando o TSE fornece revisão de votos, e implantação
 de serviço de coleta persistente caso o usuário deseje cobertura
