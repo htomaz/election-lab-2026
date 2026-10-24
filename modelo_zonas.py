@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 import csv
+from modelo_participacao import estimar_volume_zona
 
 
 def carregar_zonas(caminho='historico_zonas.csv'):
@@ -40,7 +41,7 @@ def prior_zona(registro,peso):
 
 
 def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
-                  intensidade=.35,universo=None):
+                  intensidade=.35,universo=None,participacao=None):
     """observadas: {(UF, mun5, zona4): {'lula','flavio','validos','secoes','secoes_total'}}.
 
     Universo, quando fornecido, é um cadastro de zonas da eleição-alvo sem
@@ -72,6 +73,16 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
             peso=.30*min(1.,progress/.15)
             total=max(v,(1-peso)*esperado+peso*v/progress)
         else:total=max(v,esperado)
+        # Estimador por eleitorado, comparecimento e validade prevalece quando
+        # existe histórico zonal auditado e EA20 suficientemente detalhado.
+        detalhe = None
+        if participacao:
+            detalhe=estimar_volume_zona(participacao.get(chave,{}),x,
+                                        peso_2026=peso_2026,
+                                        intensidade=intensidade,
+                                        ajuste_eleitorado=ajuste_volume)
+            if detalhe is not None:
+                total=max(v,detalhe['validos_finais_estimados'])
         faltante=max(0.,total-v)
         par=l+d
         if par and chave in refs:
@@ -79,7 +90,7 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
             estad[uf]['observados']+=par
             estad[uf]['residuo']+=par*residuo
         estad[uf]['esperados']+=volume
-        linhas.append((chave,p,volume,l,d,v,faltante,progress,ts))
+        linhas.append((chave,p,volume,l,d,v,faltante,progress,ts,detalhe))
     swing={}
     for uf,x in estad.items():
         cobertura=min(1.,x['observados']/max(1.,x['esperados']))
@@ -88,7 +99,7 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
     por_uf=defaultdict(lambda:{'lula':0.,'flavio':0.,'apurados':0,
                                  'projetados':0.,'zonas_observadas':0,'zonas_total':0})
     saida=[]
-    for chave,p,volume,l,d,v,faltante,progress,ts in linhas:
+    for chave,p,volume,l,d,v,faltante,progress,ts,detalhe in linhas:
         uf=chave[0];frac=max(.01,min(.99,p+swing.get(uf,0)))
         pl=l+faltante*frac;pf=d+faltante*(1-frac)
         a=por_uf[uf];a['lula']+=pl;a['flavio']+=pf;a['apurados']+=v
@@ -100,7 +111,18 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
                       'lula_projetado':pl,'flavio_projetado':pf,
                       'validos_projetados':pl+pf,'lula_historico_pct':100*p,
                       'lula_projetado_pct':100*pl/(pl+pf) if pl+pf else None,
-                      'historico_disponivel':chave in refs})
+                      'historico_disponivel':chave in refs,
+                      'modelo_volume':('participacao' if detalhe else 'validos_historicos'),
+                      'participacao':detalhe,
+                      'validos_restantes_estimados':faltante,
+                      'abstencoes_finais_estimadas':(
+                          detalhe['abstencoes_finais_estimadas'] if detalhe else None),
+                      'brancos_finais_estimados':(
+                          detalhe['brancos_finais_estimados'] if detalhe else None),
+                      'nulos_finais_estimados':(
+                          detalhe['nulos_finais_estimados'] if detalhe else None),
+                      'comparecimento_final_estimado':(
+                          detalhe['comparecimento_final_estimado'] if detalhe else None)})
     nl=sum(x['lula'] for x in por_uf.values())
     nf=sum(x['flavio'] for x in por_uf.values())
     return {'linhas':saida,'por_uf':dict(por_uf),'lula':nl,'flavio':nf,
