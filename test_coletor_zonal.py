@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from coletor_zonal import catalogar_ea12, coletar
+from coletor_zonal import catalogar_ea16, coletar
 
 
 class TestColetorZonal(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestColetorZonal(unittest.TestCase):
             self.assertEqual(a['atualizadas'],2)
             dados=json.loads(arq.read_text(encoding='utf-8'))
             self.assertEqual(len(dados['observacoes']),2)
-            self.assertTrue(dados['catalogo_origem']=='EA12_TSE_6258')
+            self.assertTrue(dados['catalogo_origem']=='CATALOGO_INJETADO_TESTE')
             b=self._executar_teste(arq)
             self.assertEqual(b['requisicoes'],0)
             self.assertEqual(len(self.leituras),2)
@@ -75,16 +75,17 @@ class TestColetorZonal(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'faixa segura'):
                 self._executar_teste(Path(dir)/'dados.json',taxa=150)
 
-    def test_cat_ea12_uf_municipio_zona_com_zeros(self):
+    def test_cat_ea16_uf_municipio_zona_com_zeros(self):
         p={'abr':[{'cd':'SP','mu':[{'cd':'71072','nm':'SÃO PAULO',
-                                  'zon':[{'cd':'1'},{'cd':'0237'}]}]}]}
+                                  'zon':[{'cd':'1','sec':[{'ns':'0001'}]},{'cd':'0237','sec':[]}]}]}]}
         x=catalogar_ea12(p)
         self.assertEqual(len(x),2)
         self.assertEqual(x[self.a]['nome'],'SÃO PAULO')
+        self.assertEqual(x[self.a]['secoes_cadastradas_ea16'],1)
         self.assertEqual(x[('SP','71072','0237')]['zona'],'0237')
         with self.assertRaisesRegex(ValueError,'duplicada'):
             catalogar_ea12({'abr':[{'cd':'SP','mu':[{
-                'cd':'71072','zon':[{'cd':'1'},{'cd':'0001'}]}]}]})
+                'cd':'71072','zon':[{'cd':'1','sec':[]},{'cd':'0001','sec':[]}]}]}]})
 
 
 if __name__=='__main__':
