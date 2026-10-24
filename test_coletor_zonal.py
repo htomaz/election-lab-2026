@@ -81,7 +81,9 @@ class TestColetorZonal(unittest.TestCase):
                     'geracao':'25/10/2026 18:00:00'},None
         with tempfile.TemporaryDirectory() as dir:
             arq=Path(dir)/'snap.json'
-            with patch('coletor_zonal.baixar_catalogo',side_effect=remoto):
+            with patch('coletor_zonal.consultar_config',
+                       return_value={'pleito_2turno_confirmado':True}), \
+                 patch('coletor_zonal.baixar_catalogo',side_effect=remoto):
                 x=coletar(arq,uf='SP',limite=10,coletar_zona=buscar,
                          permitir_antes=True,clock=lambda:self.tempo,
                          sleep=lambda s:None)
@@ -101,6 +103,16 @@ class TestColetorZonal(unittest.TestCase):
                        permitir_antes=True,clock=lambda:self.tempo,
                        sleep=lambda s:None)
                 self.assertEqual(chamadas,[['SP'],['RJ']])
+
+    def test_preflight_bloqueia_urls_se_ea11_nao_publicou_3221(self):
+        with tempfile.TemporaryDirectory() as dir:
+            with patch('coletor_zonal.consultar_config',
+                       return_value={'pleito_2turno_confirmado':False}), \
+                 patch('coletor_zonal.baixar_catalogo') as baixar:
+                with self.assertRaisesRegex(ValueError,'não publicou'):
+                    coletar(Path(dir)/'dados.json',uf='SP',
+                           permitir_antes=True,clock=lambda:self.tempo)
+                baixar.assert_not_called()
 
     def test_bloqueio_da_escrita_concorrente(self):
         from coletor_zonal import _arquivo_bloqueado
