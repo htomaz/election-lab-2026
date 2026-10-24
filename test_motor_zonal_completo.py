@@ -74,9 +74,12 @@ class TestMotorCompleto(unittest.TestCase):
             'lula':65,'flavio':35,'validos':100,'secoes':2,
             'secoes_total':2,'capturado_em':self.now-2400}
         r=self._calcular_teste()
-        self.assertEqual(r['brasil']['lula_apurado'],0)
+        # Coleta antiga não é 'ao vivo', mas os votos já publicados
+        # continuam conhecidos e não podem ser reestimados como ausentes.
+        self.assertEqual(r['brasil']['lula_apurado'],65)
         self.assertEqual(r['brasil']['zonas_desatualizadas'],1)
         self.assertEqual(r['brasil']['zonas_consultadas'],0)
+        self.assertEqual(r['brasil']['zonas_com_observacao'],1)
         self.assertEqual(next(x for x in r['linhas'] if x['zona']=='0001')['status'],
                          'desatualizada')
 
