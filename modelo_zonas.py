@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 import csv
-from modelo_participacao import estimar_volume_zona
+from modelo_participacao import estimar_volume_zona, referencia_historica
 
 
 def carregar_zonas(caminho='historico_zonas.csv'):
@@ -40,6 +40,49 @@ def prior_zona(registro,peso):
     return p,(a or b)['validos']
 
 
+
+def calibrar_taxas_uf_observadas(observadas, participacao, peso_2026=.75,
+                               intensidade=.35):
+    """Encolhe desvios de taxas com dados de zonas efetivamente observadas.
+
+    Usa apenas EA20 revelado e histórico de cada zona. Nenhum voto
+    futuro entra no ajuste. Não é calibração retrospectiva de parâmetros.
+    """
+    from collections import defaultdict
+    from math import sqrt
+    limites={'turnout':.12,'valid':.08,'blank':.06,'null':.06}
+    grupos=defaultdict(lambda:{k:[0.,0.] for k in limites})
+    for chave,x in observadas.items():
+        prior=referencia_historica(participacao.get(chave,{}),peso_2026)
+        if not prior:
+            continue
+        campos=('aptos_processados','comparecimento','validos','brancos','nulos')
+        if any(x.get(k) is None for k in campos):
+            continue
+        ap=int(x['aptos_processados'])
+        comp=int(x['comparecimento'])
+        s=int(x.get('secoes',0));ts=int(x.get('secoes_total',0))
+        if ap<=0 or comp<=0 or ts<=0 or s<=0 or s>ts:
+            continue
+        if comp>ap or int(x['validos'])+int(x['brancos'])+int(x['nulos'])>comp:
+            continue
+        maturidade=sqrt(s/ts)
+        atuais={'turnout':comp/ap,'valid':int(x['validos'])/comp,
+                'blank':int(x['brancos'])/comp,'null':int(x['nulos'])/comp}
+        for k in limites:
+            peso=(ap if k=='turnout' else comp)*maturidade
+            dif=max(-limites[k],min(limites[k],atuais[k]-prior[k]))
+            grupos[chave[0]][k][0]+=peso*dif
+            grupos[chave[0]][k][1]+=peso
+    saida={}
+    for uf,tipos in grupos.items():
+        saida[uf]={}
+        for k,(num,den) in tipos.items():
+            # shrinkage por equivalente a 100 mil pessoas processadas.
+            confianca=min(.65,den/(den+100000)) if den>0 else 0.
+            saida[uf][k]=intensidade*confianca*num/max(1.,den)
+    return saida
+
 def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
                   intensidade=.35,universo=None,participacao=None,
                   peso_correcao_municipal=.25):
@@ -51,6 +94,9 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
     if (not 0<=peso_2026<=1 or ajuste_volume<=0 or
         not 0<=intensidade<=1 or not 0<=peso_correcao_municipal<=1):
         raise ValueError('Parâmetros inválidos')
+    taxas_uf=(calibrar_taxas_uf_observadas(
+        observadas,participacao,peso_2026,intensidade)
+        if participacao else {})
     refs={k:p for k,r in historicos.items() if (p:=prior_zona(r,peso_2026)) is not None and p[1]>0}
     nuf=defaultdict(float);vuf=defaultdict(float);countuf=defaultdict(int)
     for (uf,_,_),(p,v) in refs.items():
@@ -86,7 +132,8 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
             detalhe=estimar_volume_zona(participacao.get(chave,{}),x,
                                         peso_2026=peso_2026,
                                         intensidade=intensidade,
-                                        ajuste_eleitorado=ajuste_volume)
+                                        ajuste_eleitorado=ajuste_volume,
+                                        ajuste_taxas_uf=taxas_uf.get(uf))
             if detalhe is not None:
                 total=max(v,detalhe['validos_finais_estimados'])
         faltante=max(0.,total-v)
@@ -163,6 +210,7 @@ def projetar_zonas(observadas,historicos,peso_2026=.75,ajuste_volume=1.,
             'flavio_pct':100*nf/(nl+nf) if nl+nf else None,
             'swing_estadual':swing,
             'swing_municipal':swing_municipal,
+            'ajuste_comparecimento_uf':taxas_uf,
             'diagnostico_representatividade_uf':{
                 uf:{
                     'lula_hist_observadas_pct':100*info['historico_lula_obs']/
