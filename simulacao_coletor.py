@@ -63,7 +63,7 @@ def executar():
             raise AssertionError('Simulação do coletor excedeu 60 segundos')
         return {'zonas':len(catalogo),'primeira_coleta':primeiro['atualizadas'],
                 'segunda_coleta':segundo['atualizadas'],
-                'consultas_evitadas':terceiro['zona_alvo']-terceiro['requisicoes'],
+                'consultas_evitadas':len(catalogo)-terceiro['requisicoes'],
                 'reconsulta_apos_200s':retomar['requisicoes'],
                 'duracao_total_s':round(total,3),
                 'tamanho_snapshot_mb':round(local.stat().st_size/1048576,2)}
