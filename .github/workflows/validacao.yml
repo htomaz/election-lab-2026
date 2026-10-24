@@ -69,6 +69,9 @@ jobs:
         run: |
           python calibrar_participacao.py --saida /tmp/calibracao_ufs.csv --resumo /tmp/resumo_calibracao.csv
           cat /tmp/resumo_calibracao.csv
+      - name: Simular motor completo de 6.292 zonas de 0 a 100 por cento
+        timeout-minutes: 3
+        run: python simulacao_operacional.py
       - name: Salvar diagnósticos retrospectivos
         if: always()
         uses: actions/upload-artifact@v4
@@ -79,5 +82,6 @@ jobs:
             /tmp/resumo_participacao.csv
             /tmp/calibracao_ufs.csv
             /tmp/resumo_calibracao.csv
+            /tmp/simulacao_operacional_zonas.csv
           if-no-files-found: warn
           retention-days: 15
