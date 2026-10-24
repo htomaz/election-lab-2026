@@ -68,7 +68,7 @@ class TestColetorZonal(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dir:
             with self.assertRaisesRegex(ValueError,'apuração oficial'):
                 coletar(Path(dir)/'dados.json',uf='SP',
-                        origem=self.catal,coletar_zona=self.buscar)
+                        origem=self.catal,coletar_zona=self.buscar,agora=1_760_000_000)
 
     def test_rejeita_excesso_taxa(self):
         with tempfile.TemporaryDirectory() as dir:
