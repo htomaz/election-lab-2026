@@ -146,9 +146,10 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
     elif br['cobertura_zonas_pct'] < 80:
         st.warning('Cobertura zonal incompleta. O valor estimado para as demais '
                    'localidades ainda depende predominantemente do histórico.')
-    if oficial and len({r['uf'] for r in snap.get('catalogo',[])})!=28:
-        st.error('Cadastro oficial incompleto; não publicar projeção nacional.')
-        return
+    nacional_habilitado=bool(not oficial or br['catalogo_oficial_nacional'])
+    if oficial and not nacional_habilitado:
+        st.warning('Cadastro EA16 parcial: os números abaixo representam ' 
+                   'somente as localidades cadastradas, não todo o Brasil.')
 
     if historico_participacao is not None:
         proporcao=br['cobertura_modelo_participacao_pct']
