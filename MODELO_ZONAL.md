@@ -64,7 +64,12 @@ não processado. Uma zona concluída mantém os valores oficiais sem
 acréscimo de votos, brancos ou nulos.
 
 A taxa de comparecimento histórica pondera 2026T1 (75%) e 2022T2
-(25%), mas poderá divergir no segundo turno. O código incorpora
+(25%). Quando a zona tem 2022T1, acrescenta à componente 2026 metade
+da mudança observada entre 2022T1→2022T2 (limitada, antes da ponderação,
+a ±12 p.p. para comparecimento, ±8 p.p. para validade e ±4 p.p. para
+brancos e nulos). Essa transferência **não é uma previsão validada**
+de uma mudança idêntica em 2026; ela constitui uma regularização
+experimental baseada em comportamento de eleições anteriores. O código incorpora
 de maneira conservadora um eventual desvio encontrado nas seções
 apuradas: ajuste máximo por iteração de 12 p.p. no sinal bruto de
 comparecimento e 8 p.p. no sinal bruto de validade, multiplicado
@@ -108,8 +113,9 @@ python -m unittest discover -p 'test_*.py' -v
 Para reconstruir a base de fontes públicas a partir dos ZIPs originais:
 
 ```bash
-python obter_participacao_tse.py --ano 2022
-python obter_participacao_tse.py --ano 2026
+python obter_participacao_tse.py --ano 2022 --turno 1
+python obter_participacao_tse.py --ano 2022 --turno 2
+python obter_participacao_tse.py --ano 2026 --turno 1
 ```
 
 ## Fluxo operacional
