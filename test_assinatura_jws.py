@@ -4,7 +4,8 @@ import json
 import unittest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
-from assinatura_jws import verificar_jws,comparar_assinado_zona
+from assinatura_jws import (verificar_jws,comparar_assinado_zona,
+    TSE_JWS_PUBLIC_KEY_B64_OFICIAL,TSE_JWS_KID_OFICIAL,chave_publica_confiavel)
 from test_auditoria_ea20_2026 import payload_ea20
 from tse import normalizar_ea20
 
@@ -27,6 +28,19 @@ class TestAssinaturaJWS(unittest.TestCase):
         p=b64(payload if payload is not None else self.payload)
         msg=(h+'.'+p).encode()
         return '.'.join((h,p,b64(self.key.sign(msg))))
+
+    def test_chave_publica_oficial_pinada_com_kid_do_apendice_b(self):
+        self.assertEqual(TSE_JWS_PUBLIC_KEY_B64_OFICIAL,
+                         'kWlpNHjuws1csyQZwzn3Fhzbi3RD435RbpThtSr4hMc')
+        self.assertEqual(TSE_JWS_KID_OFICIAL,
+                         'sNbt9Q_fLS65zE1_ZLNV-XRRwPY')
+        self.assertIsNotNone(chave_publica_confiavel(
+            TSE_JWS_PUBLIC_KEY_B64_OFICIAL))
+
+    def test_pin_oficial_rejeita_jws_sem_kid_oficial(self):
+        token=self.assinar({'alg':'EdDSA','kid':'pEGrlis0i8vO2Bz7Ergwr0MnKfg'})
+        with self.assertRaisesRegex(ValueError,'kid'):
+            verificar_jws(token)
 
     def test_compact_assinado_verifica_com_chave_fora_do_jws(self):
         token=self.assinar()
