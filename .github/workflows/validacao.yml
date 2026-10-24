@@ -46,3 +46,35 @@ jobs:
       - name: Conferir catálogo oficial de municípios e zonas do 1º turno
         timeout-minutes: 3
         run: python teste_catalogo_zonas_tse.py
+
+      - name: Importar participação zonal TSE 2026 primeiro turno
+        timeout-minutes: 6
+        run: python obter_participacao_tse.py --ano 2026 --saida historico_participacao_zonas.csv
+      - name: Importar participação zonal TSE 2022 segundo turno
+        timeout-minutes: 6
+        run: python obter_participacao_tse.py --ano 2022 --saida historico_participacao_zonas.csv
+      - name: Inspecionar cobertura de participação por zonas
+        run: |
+          python - <<'PY'
+          import csv
+          from collections import Counter
+          with open('historico_participacao_zonas.csv',newline='',encoding='utf-8') as f:
+              data=list(csv.DictReader(f))
+          counts=Counter((r['ano'],r['turno']) for r in data)
+          print('PARTICIPACAO_COVERAGE:',counts)
+          if counts[('2022','2')]<6000 or counts[('2026','1')]<6000:
+              raise SystemExit('Participação histórica incompleta')
+          with open('historico_participacao_zonas.csv',encoding='utf-8') as f:
+              print('PARTICIPACAO_EXPORT_START')
+              for linha in f:
+                  print('PARTICIPACAO_ROW:'+linha.rstrip('\\n'))
+              print('PARTICIPACAO_EXPORT_END')
+          PY
+      - name: Exportar participação histórica validada
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historico-participacao-zonas
+          path: historico_participacao_zonas.csv
+          if-no-files-found: warn
+          retention-days: 3
