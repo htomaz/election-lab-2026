@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from coletor_zonal import catalogar_ea16, coletar
 
@@ -63,6 +64,51 @@ class TestColetorZonal(unittest.TestCase):
             self.assertLessEqual(r['requisicoes'],1)
             dados=json.loads(arq.read_text(encoding='utf-8'))
             self.assertEqual(len(dados['observacoes']),2)
+
+    def test_coleta_sp_e_rj_preserva_snapshot_entre_ufs(self):
+        a=self.a
+        rj=('RJ','60011','0001')
+        catalogo_sp={a:self.catal[a]}
+        catalogo_rj={rj:{'uf':'RJ','municipio':'60011','zona':'0001'}}
+        chamadas=[]
+        def remoto(*,abrangencias):
+            chamadas.append(abrangencias)
+            return catalogo_sp if abrangencias==['SP'] else catalogo_rj
+        def buscar(uf,mun,zona):
+            return {'uf':uf,'municipio':mun,'zona':zona,
+                    'lula':40,'flavio':60,'validos':100,
+                    'secoes':1,'secoes_total':1,
+                    'geracao':'25/10/2026 18:00:00'},None
+        with tempfile.TemporaryDirectory() as dir:
+            arq=Path(dir)/'snap.json'
+            with patch('coletor_zonal.baixar_catalogo',side_effect=remoto):
+                x=coletar(arq,uf='SP',limite=10,coletar_zona=buscar,
+                         permitir_antes=True,clock=lambda:self.tempo,
+                         sleep=lambda s:None)
+                self.assertEqual(x['catalogo'],1)
+                # Outra UF não pode descartar o catálogo nem os votos SP.
+                y=coletar(arq,uf='RJ',limite=10,coletar_zona=buscar,
+                         permitir_antes=True,clock=lambda:self.tempo,
+                         sleep=lambda s:None)
+                self.assertEqual(y['catalogo'],2)
+                dados=json.loads(arq.read_text(encoding='utf-8'))
+                self.assertEqual(len(dados['catalogo']),2)
+                self.assertEqual(len(dados['observacoes']),2)
+                self.assertEqual(chamadas,[['SP'],['RJ']])
+                # Reconsulta SP aproveita EA16 salvo, sem HTTP para catálogo.
+                self.tempo+=500
+                coletar(arq,uf='SP',limite=10,coletar_zona=buscar,
+                       permitir_antes=True,clock=lambda:self.tempo,
+                       sleep=lambda s:None)
+                self.assertEqual(chamadas,[['SP'],['RJ']])
+
+    def test_bloqueio_da_escrita_concorrente(self):
+        from coletor_zonal import _arquivo_bloqueado
+        with tempfile.TemporaryDirectory() as dir:
+            destino=Path(dir)/'dados.json'
+            with _arquivo_bloqueado(destino):
+                with self.assertRaisesRegex(RuntimeError,'Já existe uma coleta'):
+                    self._executar_teste(destino)
 
     def test_rejeita_execucao_antes_da_eleicao(self):
         with tempfile.TemporaryDirectory() as dir:
