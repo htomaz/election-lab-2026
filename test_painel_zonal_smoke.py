@@ -40,7 +40,7 @@ class TestPainelZonalSmoke(unittest.TestCase):
             self.assertFalse(app.exception,
                              [str(x.message) for x in app.exception])
             avisos=[str(x.proto) for x in app.warning]
-            self.assertTrue(any('Cadastro EA16 parcial' in t for t in avisos))
+            self.assertTrue(any('Cadastro EA16 parcial' in t for t in avisos),\n                            {'avisos':avisos,\n                             'erros':[str(x.proto) for x in app.error],\n                             'infos':[str(x.proto) for x in app.info]})
             titulos=[str(x.proto) for x in app.markdown]
             self.assertTrue(any('SOMENTE das UFs' in t for t in titulos))
 
