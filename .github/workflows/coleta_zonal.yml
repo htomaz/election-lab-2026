@@ -1,0 +1,64 @@
+name: Coleta experimental por zona EA20
+on:
+  workflow_dispatch:
+    inputs:
+      escopo:
+        description: "UF em maiúsculas (ex.: SP) ou TODAS"
+        required: true
+        default: "TODAS"
+        type: string
+      limite:
+        description: "Máximo de zonas consultadas (até 10000)"
+        required: true
+        default: "10000"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  coleta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar requests
+        run: python -m pip install 'requests>=2.31,<3'
+      - name: Validar parâmetros
+        shell: bash
+        env:
+          ESCOPO: ${{ inputs.escopo }}
+          LIMITE: ${{ inputs.limite }}
+        run: |
+          python - <<'PY'
+          import os
+          from tse import UFS
+          escopo=os.environ['ESCOPO'].upper()
+          limite=os.environ['LIMITE']
+          if escopo!='TODAS' and escopo not in UFS:
+              raise SystemExit('UF inválida')
+          if not limite.isdigit() or not 1<=int(limite)<=10000:
+              raise SystemExit('Limite inválido')
+          PY
+      - name: Coletar EA16 e EA20 oficiais de todas as zonas selecionadas
+        env:
+          ESCOPO: ${{ inputs.escopo }}
+          LIMITE: ${{ inputs.limite }}
+        shell: bash
+        run: |
+          if [ "$ESCOPO" = "TODAS" ]; then
+            python coletor_zonal.py --todas --limite "$LIMITE" --taxa 12 --concorrencia 8 --saida dados_zonais_6258.json
+          else
+            python coletor_zonal.py --uf "$ESCOPO" --limite "$LIMITE" --taxa 12 --concorrencia 8 --saida dados_zonais_6258.json
+          fi
+      - name: Publicar snapshot para carregar no Streamlit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-zonal-6258
+          path: dados_zonais_6258.json
+          if-no-files-found: warn
+          retention-days: 3
