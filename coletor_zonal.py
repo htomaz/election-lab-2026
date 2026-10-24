@@ -205,7 +205,6 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
     clock=clock or time.time
     sleep=sleep or time.sleep
     dados=carregar_arquivo(caminho)
-    clock=clock or time.time
     ultimo_catalogo=_cat_existente(dados)
     data_cat=dados.get('catalogo_atualizado_em')
     idade_cat=clock()-float(data_cat) if data_cat is not None else float('inf')
@@ -231,6 +230,21 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
             # o universo já conhecido para não apagar votos de outras UFs.
             novos=baixar_catalogo(abrangencias=[escopo] if escopo else UFS)
             renovou_catalogo=True
+            # Falha segura caso o servidor responda com uma lista
+            # anormalmente reduzida ou remova zonas com votos conhecidos.
+            anteriores_uf={k for k in ultimo_catalogo
+                           if escopo is None or k[0]==escopo}
+            novas_uf={k for k in novos
+                      if escopo is None or k[0]==escopo}
+            if anteriores_uf and len(novas_uf)<.95*len(anteriores_uf):
+                raise ValueError('EA16 reduziu mais de 5% das zonas conhecidas; '
+                                 'conferência manual necessária antes de substituir')
+            excluidas=anteriores_uf-novas_uf
+            com_votos=[k for k in excluidas
+                       if int(dados['observacoes'].get(id_zona(k),{}).get('validos',0))>0]
+            if com_votos:
+                raise ValueError('EA16 omitiu zonas com votos oficiais já registrados: '
+                                 + str(com_votos[:4]))
             if escopo and dados.get('catalogo_origem')=='EA16_TSE_3221':
                 catalogo={k:v for k,v in ultimo_catalogo.items() if k[0]!=escopo}
                 catalogo.update(novos)
@@ -263,6 +277,13 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
     aceitas=0
     erros=[]
     bloqueio=False
+    ultimo_checkpoint=time.monotonic()
+
+    def checkpoint():
+        dados['atualizado_em']=datetime.now(timezone.utc).isoformat()
+        dados['erros_ultima_rodada']=erros[-30:]
+        dados['interrompido_por_bloqueio']=bloqueio
+        salvar_atomico(caminho,dados)
 
     with ThreadPoolExecutor(max_workers=concorrencia) as pool:
         cursor=iter(alvo)
@@ -308,14 +329,17 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
                         erros.append({'zona':k,'erro':motivo})
                 else:
                     erros.append({'zona':id_zona(chave),'erro':'Resposta vazia'})
+            # Persiste parciais enquanto a coleta está em curso, não
+            # somente após milhares de GETs. Recuperação após interrupção.
+            if aceitas and (aceitas%100==0 or
+                           time.monotonic()-ultimo_checkpoint>=20.):
+                checkpoint()
+                ultimo_checkpoint=time.monotonic()
             if not bloqueio:
                 while len(pendentes)<concorrencia and submeter():
                     pass
 
-    dados['atualizado_em']=datetime.now(timezone.utc).isoformat()
-    dados['erros_ultima_rodada']=erros[:30]
-    dados['interrompido_por_bloqueio']=bloqueio
-    salvar_atomico(caminho,dados)
+    checkpoint()
     return {'catalogo':len(catalogo),'zona_alvo':len(alvo),
             'requisicoes':processadas,'atualizadas':aceitas,
             'erros':len(erros),'interrompido':bloqueio,'arquivo':str(caminho),
