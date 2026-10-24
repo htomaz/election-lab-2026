@@ -73,15 +73,6 @@ def ler_zip(caminho,ano,turno):
                     if not codigo.isdigit() or not zona.isdigit():
                         raise ValueError('Município/zona com código inválido')
                     chave=(uf,codigo,zona,ano,turno)
-                    if chave in mapa:
-                        campos=['DT_ELEICAO','CD_ELEICAO','CD_PLEITO','TP_ABRANGENCIA',
-                                'NM_MUNICIPIO','NR_TURNO','CD_CARGO','QT_APTOS',
-                                'QT_COMPARECIMENTO','QT_ABSTENCOES','QT_VOTOS_VALIDOS',
-                                'QT_VOTOS_BRANCOS','QT_VOTOS_NULOS']
-                        atual={k:r.get(k) for k in campos if k in r}
-                        ant=anteriores_diagnostico.get(chave)
-                        raise ValueError(f'Duplicação de zona/cargo/turno em {nome}: '
-                                         f'{chave} - anterior={ant} - atual={atual}')
                     aptos=_inteiro(r,'QT_APTOS')
                     comp=_inteiro(r,'QT_COMPARECIMENTO')
                     abst=_inteiro(r,'QT_ABSTENCOES')
@@ -96,7 +87,17 @@ def ler_zip(caminho,ano,turno):
                         raise ValueError(f'Participação/votos incompatíveis: {chave}')
                     # O TSE documenta exceções pontuais por transferências
                     # temporárias, portanto não exigir aptos == comp+abst.
-                    mapa[chave]=(aptos,comp,abst,br,nul,vv)
+                    atual=(aptos,comp,abst,br,nul,vv)
+                    if chave in mapa:
+                        if mapa[chave]==atual:
+                            # Linhas rigorosamente idênticas da divulgação,
+                            # nunca somar duas vezes o mesmo eleitorado.
+                            continue
+                        raise ValueError(
+                            f'Registros divergentes para a mesma zona/cargo/turno: '
+                            f'{chave}; anterior={mapa[chave]}; atual={atual}. '
+                            'Não agregar sem identificar a desagregação oficial.')
+                    mapa[chave]=atual
                     anteriores_diagnostico[chave]={
                         k:r.get(k) for k in ('DT_ELEICAO','CD_ELEICAO','CD_PLEITO',
                            'TP_ABRANGENCIA','NM_MUNICIPIO','NR_TURNO','CD_CARGO',
