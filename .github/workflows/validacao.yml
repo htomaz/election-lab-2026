@@ -67,7 +67,7 @@ jobs:
           with open('historico_participacao_zonas.csv',encoding='utf-8') as f:
               print('PARTICIPACAO_EXPORT_START')
               for linha in f:
-                  print('PARTICIPACAO_ROW:'+linha.rstrip('\\n'))
+                  print('PARTICIPACAO_ROW:'+linha.rstrip(chr(10)))
               print('PARTICIPACAO_EXPORT_END')
           PY
       - name: Exportar participação histórica validada
