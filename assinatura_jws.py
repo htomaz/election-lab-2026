@@ -18,6 +18,12 @@ import re
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.exceptions import InvalidSignature
 
+# Publicado diretamente pelo TSE em 16/09/2026, Apêndice B do
+# Manual de verificação dos arquivos JWS, pág. 8/11.
+# Esta é uma CHAVE PÚBLICA, não uma credencial nem segredo.
+# https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws
+TSE_JWS_PUBLIC_KEY_B64_OFICIAL='kWlpNHjuws1csyQZwzn3Fhzbi3RD435RbpThtSr4hMc'
+TSE_JWS_KID_OFICIAL='sNbt9Q_fLS65zE1_ZLNV-XRRwPY'
 MAX_JWS=8*1024*1024
 
 
@@ -60,7 +66,7 @@ def _unpack(content):
     # RFC 7515: protected-base64 + '.' + payload-base64 são os bytes
     # efetivamente assinados. Nunca reconstruir JSON antes de verificar.
     entrada=(header+'.'+payload).encode('ascii')
-    return _b64(payload),assinatura,entrada
+    return _b64(payload),assinatura,entrada,header_data
 
 
 def chave_publica_confiavel(b64):
@@ -72,9 +78,18 @@ def chave_publica_confiavel(b64):
     return Ed25519PublicKey.from_public_bytes(raw)
 
 
-def verificar_jws(conteudo,chave_b64):
+def verificar_jws(conteudo,chave_b64=None):
+    # Sem argumento, utiliza exclusivamente a chave do ambiente OFICIAL
+    # publicada pelo TSE. Chave de desenvolvimento jamais é aceita no
+    # caminho padrão. O parâmetro explícito serve a testes offline.
+    if chave_b64 is None:
+        chave_b64=TSE_JWS_PUBLIC_KEY_B64_OFICIAL
     chave=chave_publica_confiavel(chave_b64)
-    payload,assinatura,entrada=_unpack(conteudo)
+    payload,assinatura,entrada,header_data=_unpack(conteudo)
+    if chave_b64==TSE_JWS_PUBLIC_KEY_B64_OFICIAL and (
+        header_data.get('kid')!=TSE_JWS_KID_OFICIAL
+    ):
+        raise ValueError('JWS com kid diferente do certificado público OFICIAL do TSE')
     try:
         chave.verify(assinatura,entrada)
     except InvalidSignature as exc:
