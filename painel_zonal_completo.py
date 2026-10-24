@@ -17,6 +17,7 @@ from coletor_zonal import coletar
 from tse import resultado_disponivel
 from motor_zonal_completo import executar, ler_snapshot
 from municipios_tse import nome_municipio
+from sensibilidade_zonal import faixa_sensibilidade
 
 
 @st.cache_data(show_spinner=False)
@@ -165,6 +166,30 @@ def exibir_modelo_zonal_completo(root,nomes=None):
     st.caption('Valores exclusivamente modelados. A parcial nacional oficial deve '
                'ser consultada separadamente na aba Painel.')
 
+    with st.expander('Cenários de sensibilidade (não são intervalos de confiança)'):
+        st.caption('Choques independentes no comparecimento ainda não processado '
+                   'e na participação de Lula entre votos válidos restantes. '
+                   'Os votos oficiais já apurados nunca são alterados.')
+        st.markdown('**Amplitude dos cenários**')
+        dcompare=st.slider('Comparecimento ainda não observado (± p.p.)',
+                           min_value=0.0,max_value=8.0,value=2.0,step=.5,
+                           key='c_sens_comparecimento')
+        dprefer=st.slider('Preferência de Lula nos votos restantes (± p.p.)',
+                          min_value=0.0,max_value=8.0,value=3.0,step=.5,
+                          key='c_sens_preferencia')
+        banda=faixa_sensibilidade(resultado['linhas'],dcompare,dprefer)
+        if banda['lula_min_pct'] is not None:
+            st.write('Lula — faixa de estresse: '
+                     f'{banda["lula_min_pct"]:.2f}% a {banda["lula_max_pct"]:.2f}%')
+            st.write('Flávio — faixa de estresse: '
+                     f'{banda["flavio_min_pct"]:.2f}% a {banda["flavio_max_pct"]:.2f}%')
+        st.caption(banda['limite'])
+        if banda['central']['zonas_sem_dados_participacao']:
+            st.warning('Choques de comparecimento são calculados apenas nas '
+                       f'{banda["central"]["zonas_com_dados_participacao"]} zonas '
+                       'com histórico e eleitorado disponíveis. Outras zonas '
+                       'mantêm o volume base; a faixa pode subestimar riscos.')
+
     # Somente uma UF por vez para não abrir milhares de linhas no celular.
     ufs=sorted(resultado['ufs'])
     if not ufs:
@@ -191,6 +216,22 @@ def exibir_modelo_zonal_completo(root,nomes=None):
     else:
         st.caption('Coleta oficial de zonas desativada antes de 25/10/2026 às 17h.')
     dados_uf=resultado['ufs'][escolhida]
+    with st.expander('Diagnóstico de representatividade das zonas observadas'):
+        diag=resultado.get('diagnostico_representatividade_uf',{}).get(escolhida)
+        if diag is None or diag['lula_hist_observadas_pct'] is None:
+            st.info('Ainda não há zonas observadas com histórico comparável nesta UF.')
+        else:
+            st.write('Lula histórico nas zonas já observadas: '
+                     f'{diag["lula_hist_observadas_pct"]:.2f}%')
+            st.write('Lula histórico em todas as zonas da UF: '
+                     f'{diag["lula_hist_total_pct"]:.2f}%')
+            delta=(diag['lula_hist_observadas_pct']-
+                   diag['lula_hist_total_pct'])
+            st.write('Viés da composição histórica das zonas observadas: '
+                     f'{delta:+.2f} p.p.')
+            st.caption('Diferença de perfil histórico, não erro efetivo da '
+                       'apuração nem evidência direta de mudança de voto.')
+
     st.caption(
         'UF: '+str(dados_uf['zonas_consultadas'])+' / '+str(dados_uf['zonas_total'])
         +' município/zonas consultados; '+
