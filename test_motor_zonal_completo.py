@@ -87,6 +87,19 @@ class TestMotorCompleto(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Catálogo EA16 nacional'):
             executar(self.snapshot,self.historico,agora=self.now)
 
+    def test_upload_marcado_simulado_ou_1turno_e_bloqueado(self):
+        x={'lula':60,'flavio':40,'validos':100,'secoes':2,
+           'secoes_total':2,'capturado_em':self.now}
+        self.snapshot['observacoes'][id_zona(self.z1)]={**x,'fase':'s'}
+        with self.assertRaisesRegex(ValueError,'inválidas'):
+            self._calcular_teste()
+        self.snapshot['observacoes'][id_zona(self.z1)]={**x,'fase':'o','turno':'1'}
+        with self.assertRaisesRegex(ValueError,'inválidas'):
+            self._calcular_teste()
+        self.snapshot['observacoes'][id_zona(self.z1)]={**x,'fase':'o','turno':'2'}
+        r=self._calcular_teste()
+        self.assertEqual(r['brasil']['lula_apurado'],60)
+
     def test_rejeita_parcial_acima_dos_validos(self):
         self.snapshot['observacoes'][id_zona(self.z1)]={
             'lula':65,'flavio':65,'validos':100,'secoes':2,
