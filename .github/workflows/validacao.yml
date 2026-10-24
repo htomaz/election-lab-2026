@@ -128,3 +128,26 @@ jobs:
             /tmp/streamlit-app.log
           retention-days: 30
           if-no-files-found: warn
+
+  candidato:
+    name: Preparar manifesto auditável, sem publicar
+    needs: [testes, navegador]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/auditoria-pre-segundo-turno'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Manifesto da versão, bases e commit
+        run: |
+          python release_candidate.py
+          python release_candidate.py --verificar
+      - name: Entregar manifesto para revisão antes de merge
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-sha256
+          path: release-candidate.json
+          retention-days: 30
