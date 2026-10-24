@@ -215,6 +215,17 @@ def exibir_modelo_zonal_completo(root,nomes=None):
                 st.error(f'Consulta zonal interrompida: {type(exc).__name__}: {str(exc)[:220]}')
     else:
         st.caption('Coleta oficial de zonas desativada antes de 25/10/2026 às 17h.')
+    with st.expander('Cenários para '+escolhida+' (não probabilísticos)'):
+        apenas_uf=[x for x in resultado['linhas'] if x['uf']==escolhida]
+        s_uf=faixa_sensibilidade(apenas_uf,dcompare,dprefer)
+        if s_uf['lula_min_pct'] is not None:
+            st.write('Lula: '+f'{s_uf["lula_min_pct"]:.2f}%'
+                     +' a '+f'{s_uf["lula_max_pct"]:.2f}%')
+            st.write('Flávio: '+f'{s_uf["flavio_min_pct"]:.2f}%'
+                     +' a '+f'{s_uf["flavio_max_pct"]:.2f}%')
+        st.caption(s_uf['limite'])
+        st.caption(f'Zonas sem modelagem explícita de comparecimento: '
+                   f'{s_uf["central"]["zonas_sem_dados_participacao"]}')
     dados_uf=resultado['ufs'][escolhida]
     with st.expander('Diagnóstico de representatividade das zonas observadas'):
         diag=resultado.get('diagnostico_representatividade_uf',{}).get(escolhida)
