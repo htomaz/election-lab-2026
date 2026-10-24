@@ -23,6 +23,10 @@ from municipios_tse import nome_municipio
 from sensibilidade_zonal import faixa_sensibilidade
 from proveniencia_tse import auditar_amostra
 from backup_actions import recuperar as recuperar_actions
+from assinatura_jws import comparar_assinado_zona
+from tse import url_resultado_zona
+import requests
+from urllib.parse import urlsplit
 from tse import baixar_zona
 
 
@@ -218,6 +222,66 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                     st.error('A fonte reconsultada diverge do snapshot. '
                              'Não interpretar esse arquivo como autenticado.')
                 st.caption(prova['nota'])
+    if oficial and resultado_disponivel() and snap.get('observacoes'):
+        with st.expander('Verificar assinatura digital JWS do TSE (Ed25519)'):
+            chave=os.environ.get('TSE_JWS_PUBLIC_KEY_B64','')
+            if not chave:
+                try:
+                    chave=str(st.secrets.get('TSE_JWS_PUBLIC_KEY_B64',''))
+                except (FileNotFoundError,KeyError):
+                    chave=''
+            st.caption('A chave pública precisa ser conferida independentemente '
+                       'com o manual oficial do TSE antes de ser configurada '
+                       'no segredo TSE_JWS_PUBLIC_KEY_B64. Jamais aceitar chave '
+                       'fornecida pelo próprio arquivo JWS.')
+            if not chave:
+                st.warning('Chave TSE ainda não configurada: a verificação '
+                           'criptográfica permanece indisponível.')
+            else:
+                zonas_disponiveis=sorted(snap['observacoes'])
+                escolha_jws=st.selectbox('Zona do snapshot para autenticar',
+                                         zonas_disponiveis,key='zona_verificar_jws')
+                assinatura=st.file_uploader('Enviar arquivo .jws do TSE (opcional)',
+                                           type=['jws'],key='upload_jws_zonal')
+                uf_j,mun_j,zona_j=escolha_jws.split('|')
+                if st.button('Conferir assinatura JWS desta zona',
+                             key='executar_verificacao_jws'):
+                    try:
+                        if assinatura is not None:
+                            conteudo=assinatura.getvalue()
+                        else:
+                            url_j=url_resultado_zona(uf_j,mun_j,zona_j)
+                            url_j=url_j[:-5]+'.jws'
+                            with st.spinner('Buscando uma assinatura na CDN oficial...'):
+                                resp=requests.get(url_j,timeout=(4,15),
+                                                  allow_redirects=False)
+                                resp.raise_for_status()
+                            if resp.status_code!=200 or (
+                                urlsplit(resp.url).hostname!='resultados.tse.jus.br'
+                            ):
+                                raise ValueError('JWS não veio da origem HTTPS oficial')
+                            conteudo=resp.content
+                        prova_jws=comparar_assinado_zona(
+                            conteudo,chave,uf_j,mun_j,zona_j,
+                            snap['observacoes'][escolha_jws])
+                        anterior=st.session_state.get('jws_zonas_conferidas')
+                        if not anterior or anterior.get('hash')!=hash_snapshot:
+                            anterior={'hash':hash_snapshot,'zonas':[]}
+                        anterior['zonas']=sorted(set(anterior['zonas'])|{escolha_jws})
+                        st.session_state['jws_zonas_conferidas']=anterior
+                        st.success('Assinatura Ed25519 válida e votos da zona '
+                                   'idênticos ao snapshot, geração '
+                                   +prova_jws['geracao']+'.')
+                    except (requests.RequestException,ValueError,UnicodeError) as exc:
+                        st.error('Assinatura JWS não homologada: '+str(exc)[:200])
+                ass=st.session_state.get('jws_zonas_conferidas')
+                if ass and ass.get('hash')==hash_snapshot:
+                    st.caption(f"Zonas criptograficamente conferidas neste "
+                               f"snapshot: {len(ass['zonas'])} de "
+                               f"{len(zonas_disponiveis)}.")
+                st.caption('Assinatura do arquivo de divulgação ≠ assinatura '
+                           'do boletim de urna; demais zonas não conferidas '
+                           'continuam com proveniência não verificada.')
     auditoria_anterior=st.session_state.get('auditoria_zonal_ultima')
     auditoria_bloqueou=bool(
         auditoria_anterior and
