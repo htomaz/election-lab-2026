@@ -118,8 +118,10 @@ def executar(snapshot, historico, nomes=None, agora=None,
                 raise ValueError('votos em zona sem seções totalizadas')
             obs={'lula':l,'flavio':f,'validos':v,
                  'secoes':s,'secoes_total':ts}
-            for campo in ('aptos','aptos_processados','comparecimento',
-                          'abstencoes','brancos','nulos','total_votos'):
+            for campo in ('aptos','aptos_processados','aptos_instalados',
+                          'aptos_nao_instalados','aptos_nao_apurados',
+                          'comparecimento','abstencoes','brancos','nulos',
+                          'total_votos'):
                 if campo in item and item[campo] is not None:
                     val=int(item[campo])
                     if val<0:
@@ -129,6 +131,24 @@ def executar(snapshot, historico, nomes=None, agora=None,
                 'aptos_processados' in obs and
                 obs['comparecimento']>obs['aptos_processados']):
                 raise ValueError('Comparecimento supera eleitorado apurado')
+            if ('aptos_instalados' in obs and
+                'aptos_processados' in obs and
+                obs['aptos_instalados']>obs['aptos_processados']):
+                raise ValueError('Eleitorado instalado supera eleitorado '
+                                 'das seções totalizadas')
+            if ('aptos_instalados' in obs and
+                'comparecimento' in obs and 'abstencoes' in obs and
+                obs['comparecimento']+obs['abstencoes']>
+                    obs['aptos_instalados']):
+                raise ValueError('Comparecimento + abstenção superam eleitorado '
+                                 'das seções instaladas')
+            if ('aptos_instalados' in obs and
+                'aptos_nao_instalados' in obs and
+                'aptos_processados' in obs and
+                obs['aptos_instalados']+obs['aptos_nao_instalados'] !=
+                    obs['aptos_processados']):
+                raise ValueError('EA20: eleitorado instalado + não instalado '
+                                 'diverge de eleitorado totalizado')
             if ('aptos' in obs and 'aptos_processados' in obs and
                 obs['aptos_processados']>obs['aptos']):
                 raise ValueError('Eleitorado apurado supera o cadastrado')
