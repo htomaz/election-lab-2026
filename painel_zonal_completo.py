@@ -52,8 +52,13 @@ def _formatar_numero(x):
     return f'{float(x):,.0f}'.replace(',','.')
 
 
-def exibir_modelo_zonal_completo(root,nomes=None):
+def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
+                                ajuste_volume=1.,intensidade=.35):
     st.subheader('Apuração e projeção por zona eleitoral')
+    st.caption('Parâmetros do modelo: histórico 2026 '+f'{peso_2026:.0%}'
+               +' · intensidade de atualização '+f'{intensidade:.2f}'
+               +' · fator de volume '+f'{ajuste_volume:.2f}'
+               +'. Ajustáveis na barra lateral.')
     st.caption('Cada combinação município/zona é uma unidade do modelo. '
                'O motor soma observações oficiais e votos ainda estimados e '
                'agrega as zonas por município, UF e Brasil.')
@@ -111,7 +116,9 @@ def exibir_modelo_zonal_completo(root,nomes=None):
     try:
         resultado=executar(snap,base,nomes=nomes or {},
                           exigir_catalogo_nacional=oficial,
-                          participacao=historico_participacao)
+                          participacao=historico_participacao,
+                          peso_2026=peso_2026,ajuste_volume=ajuste_volume,
+                          intensidade=intensidade)
     except (ValueError,KeyError,TypeError) as exc:
         st.error('Projeção territorial bloqueada: '+str(exc))
         return
