@@ -109,6 +109,32 @@ class TestAuditoriaOficialEA20(unittest.TestCase):
             normalizar_ea20(p,'SP',abrangencia_esperada='zona',
                            exigir_metadados=True)
 
+    def test_valores_nao_inteiros_nao_podem_virar_zero(self):
+        for campo,valor in [('vv','75,5'),('tv','oitenta')]:
+            p=payload_ea20()
+            p['v'][campo]=valor
+            with self.subTest(campo=campo),self.assertRaisesRegex(
+                ValueError,'malformado'):
+                normalizar_ea20(p,'SP',abrangencia_esperada='zona',
+                               exigir_metadados=True)
+        p=payload_ea20()
+        p['carg'][0]['agr'][0]['par'][0]['cand'][0]['vap']='40,5'
+        with self.assertRaisesRegex(ValueError,'malformado'):
+            normalizar_ea20(p,'SP',abrangencia_esperada='zona',
+                           exigir_metadados=True)
+
+    def test_identidade_oficial_exige_horario_e_contagens(self):
+        p=payload_ea20()
+        del p['v']['tv']
+        with self.assertRaisesRegex(ValueError,'contagens obrigatórias'):
+            normalizar_ea20(p,'SP',abrangencia_esperada='zona',
+                           exigir_metadados=True)
+        p=payload_ea20()
+        p['hg']='invalido'
+        with self.assertRaisesRegex(ValueError,'horário'):
+            normalizar_ea20(p,'SP',abrangencia_esperada='zona',
+                           exigir_metadados=True)
+
     def test_baixar_zona_rejeita_simulacao_com_http_200(self):
         p=payload_ea20()
         p['f']='s'
