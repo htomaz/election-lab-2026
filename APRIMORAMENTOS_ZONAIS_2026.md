@@ -56,6 +56,18 @@ o perfil histórico agregado de todas as zonas da UF e a
 diferença entre eles. Esses números **não** são resultados nem
 diferenças de votos efetivamente apurados.
 
+A revisão também acrescentou `calibrar_taxas_uf_observadas` ao motor:
+a diferença de comparecimento, validade, brancos e nulos de
+cada zona **efetivamente observada** em relação ao histórico
+da própria zona é agregada por UF com peso do eleitorado/seções,
+limites de sinal e shrinkage para 100 mil eleitores processados.
+A correção suavizada é aplicada ao eleitorado **ainda não contado**
+de outras zonas dessa mesma UF; os votos já apurados não são
+modificados. A intensidade padrão continua conservadora (0,35),
+sem impor automaticamente o valor 0,75 que venceu a avaliação
+in-sample de 2022. Uma mudança de UF observada pode reduzir ou
+elevar o comparecimento previsto das zonas não observadas.
+
 O parâmetro de intensidade da correção continua limitado e
 exploratório; os pesos precisam de avaliação prospectiva.
 
