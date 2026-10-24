@@ -138,15 +138,15 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
     if processados>0:
         turnout_obs=comparecimento/processados
         taxa_t=limitar(prior['turnout']+
-                       ganho*limitar(turnout_obs-prior['turnout'],-.12,.12),0.,1.)
+                       ganho*limitar(turnout_obs-taxa_t,-.12,.12),0.,1.)
     if comparecimento>0:
         valid_obs=votos_obs/comparecimento
         taxa_v=limitar(prior['valid']+
-                       ganho*limitar(valid_obs-prior['valid'],-.08,.08),0.,1.)
+                       ganho*limitar(valid_obs-taxa_v,-.08,.08),0.,1.)
         taxa_b=limitar(prior['blank']+
-                       ganho*limitar(brancos/comparecimento-prior['blank'],-.06,.06),0.,1.)
+                       ganho*limitar(brancos/comparecimento-taxa_b,-.06,.06),0.,1.)
         taxa_n=limitar(prior['null']+
-                       ganho*limitar(nulos/comparecimento-prior['null'],-.06,.06),0.,1.)
+                       ganho*limitar(nulos/comparecimento-taxa_n,-.06,.06),0.,1.)
     # Distribuição mutuamente exclusiva: nenhuma categoria pode exceder
     # os presentes previstos.
     if taxa_v+taxa_b+taxa_n>1:
