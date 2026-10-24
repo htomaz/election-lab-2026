@@ -29,8 +29,8 @@ antes de validar o 2º turno federal 6258 no dia 25/10/2026.
 O modelo deixa de utilizar apenas o volume histórico de votos válidos
 nas zonas em que o histórico de participação e a apuração EA20 detalhada
 estão completos. A base `historico_participacao_zonas.csv` contém
-12.575 registros por município/zona e eleição: 6.283 do 2º turno de 2022
-e 6.292 do 1º turno de 2026. A origem é
+18.858 registros por município/zona e eleição: 6.283 do 1º turno de 2022,
+6.283 do 2º turno de 2022 e 6.292 do 1º turno de 2026. A origem é
 `detalhe_votacao_munzona_{ano}.zip`, do TSE, cargo Presidente.
 Registros duplicados **somente são deduplicados quando idênticos**;
 divergências interrompem a importação. `validar_participacao.py`
