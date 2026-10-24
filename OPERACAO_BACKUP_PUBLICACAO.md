@@ -64,12 +64,28 @@ oficiais e compara horário de geração, votos/seções e SHA-256.
 Gerações mais recentes são indicadas separadamente, para não produzir
 falsas suspeitas de corrupção durante a apuração.
 
-A assinatura criptográfica oficial **JWS** da publicação do TSE
-ainda não é validada automaticamente pela aplicação. SHA-256 +
-fonte HTTPS e uma amostra reconsultada **não** substituem assinatura
-Ed25519/JWS e não autentica integralmente um upload arbitrário.
-Portanto, não afirmar que um arquivo importado foi assinado
-ou criptograficamente homologado. Manual oficial:
+O arquivo `assinatura_jws.py` agora implementa verificação de **JWS
+Ed25519** (compact ou JSON flattened) com chave pública fixada por
+configuração independente. São rejeitados algoritmos diferentes,
+chaves fornecidas no próprio JWS, assinaturas adulteradas e
+conteúdos que não coincidem com a zona do snapshot.
+
+**A verificação criptográfica depende de uma configuração externa que
+ainda não foi fornecida:** copiar o valor de 32 bytes Ed25519 do
+**Apêndice B do manual oficial do TSE**, conferir sua procedência e
+salvá-lo como `TSE_JWS_PUBLIC_KEY_B64` no Streamlit Secrets.
+Nenhuma chave de terceiro foi embutida no código. Após configurar,
+a aba Zonas permite enviar um JWS da zona escolhida ou buscar um
+único arquivo assinado na CDN oficial, validá-lo e compará-lo com
+o snapshot. A contagem de zonas autenticadas é por snapshot, nunca
+generalizada a todo o Brasil.
+
+Sem chave pública, esta função permanece desativada (fail-closed).
+SHA-256, HTTPS e amostra reconsultada continuam sendo verificações
+**complementares**, nunca equivalentes a JWS.
+A assinatura JWS autentica a publicação; não atesta independentemente
+os boletins de urna ou o processo integral de transmissão/totalização.
+Manual oficial:
 https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados
 
 ## 4. Publicação reproduzível, SEM DEPLOY
