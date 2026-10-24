@@ -136,7 +136,7 @@ jobs:
   candidato:
     name: Preparar manifesto auditável, sem publicar
     needs: [testes, navegador]
-    if: (github.event_name == 'pull_request' && github.head_ref == 'fix/auditoria-pre-segundo-turno') || (github.event_name == 'push' && github.ref == 'refs/heads/fix/auditoria-pre-segundo-turno')
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/fix/auditoria-pre-segundo-turno'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
