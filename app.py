@@ -213,13 +213,27 @@ def painel():
             fig.add_trace(go.Scatter(x=df_serie['Progresso'],y=df_serie[nome],mode='lines+markers',name=nome,
                 line=dict(color=CORES[nome.split()[0]] if 'apurado' in nome else CORES[nome],dash=tracejado,width=2.5),
                 marker=dict(size=4),hovertemplate='%{x:.1f}% apurado · %{y:.2f}% votos válidos<extra>'+nome+'</extra>'))
-        fig.update_layout(height=365,template='plotly_dark',
-            legend=dict(orientation='h',y=-.31,x=0,font=dict(size=10),itemwidth=30),
-            margin=dict(l=5,r=5,t=5,b=85),
+        # O zoom vertical acompanha TODAS as quatro curvas (apuradas e projetadas).
+        # Margem pequena evita cortar os marcadores nas extremidades, sem alterar dados.
+        colunas_grafico=['Lula apurado','Flávio apurado','Lula projetado','Flávio projetado']
+        valores_grafico=pd.concat(
+            [pd.to_numeric(df_serie[coluna],errors='coerce') for coluna in colunas_grafico],
+            ignore_index=True).dropna()
+        if not valores_grafico.empty:
+            minimo=float(valores_grafico.min())
+            maximo=float(valores_grafico.max())
+            margem=max(0.20,(maximo-minimo)*0.05)
+            faixa_vertical=[max(0.0,minimo-margem),min(100.0,maximo+margem)]
+        else:
+            faixa_vertical=[0.0,100.0]
+        fig.update_layout(height=580,template='plotly_dark',
+            legend=dict(orientation='h',y=-.18,x=0,font=dict(size=10),itemwidth=30),
+            margin=dict(l=5,r=5,t=8,b=125),
             xaxis=dict(title='Seções totalizadas (%)',range=[0,101]),
-            yaxis=dict(title='Votos válidos (%)',range=[20,80]),
+            yaxis=dict(title='Votos válidos (%)',range=faixa_vertical,ticksuffix='%',tickformat='.1f'),
             hovermode='x unified',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig,width="stretch",config={'displayModeBar':False,'responsive':True})
+        st.caption('Escala vertical com zoom automático para destacar variações; os percentuais não são alterados.')
         if demo:
             st.caption('Trajetórias fictícias apenas para testar o painel.')
         else:
