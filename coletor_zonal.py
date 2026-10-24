@@ -27,6 +27,7 @@ import requests
 
 from auditoria_ao_vivo import validar_substituicao
 from motor_zonal_completo import chave_zona, id_zona
+from preflight_tse import consultar_config
 from tse import ELEICAO, UFS, baixar_zona, resultado_disponivel
 
 PLEITO = 3221  # Eleições gerais 2026 - segundo turno
@@ -226,6 +227,12 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
         if catalogo_recuperavel and ja_tem:
             catalogo=ultimo_catalogo
         else:
+            # Não tentar adivinhar centenas de URLs EA16 se o TSE não
+            # anunciou 3221/6258 no EA11. Uma única consulta de preflight.
+            oficial=consultar_config()
+            if not oficial['pleito_2turno_confirmado']:
+                raise ValueError('TSE ainda não publicou o pleito 3221/6258 '
+                                 'no arquivo EA11; coleta zonal suspensa')
             # Uma única UF NÃO precisa baixar os 28 catálogos. Preserve
             # o universo já conhecido para não apagar votos de outras UFs.
             novos=baixar_catalogo(abrangencias=[escopo] if escopo else UFS)
