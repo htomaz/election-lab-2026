@@ -87,7 +87,15 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
     if votos_obs<l+d:
         raise ValueError('Votos do candidato superam votos válidos')
     aptos_atual=x.get('aptos')
-    aptos=float(aptos_atual if aptos_atual is not None else prior['aptos']*ajuste_eleitorado)
+    # Antes da primeira seção, alguns snapshots EA20 contêm e.te=0
+    # provisório. Zero NÃO pode eliminar o eleitorado histórico.
+    if aptos_atual is not None and int(aptos_atual)==0 and not (
+        int(x.get('validos',0)) or int(x.get('secoes',0)) or
+        int(x.get('aptos_processados') or 0)
+    ):
+        aptos_atual=None
+    aptos=float(aptos_atual if aptos_atual is not None else
+                prior['aptos']*ajuste_eleitorado)
     if aptos<0 or not isfinite(aptos):
         raise ValueError('Eleitorado total inválido')
     total_secoes=int(x.get('secoes_total',0))
