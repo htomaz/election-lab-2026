@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -96,6 +98,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -132,16 +136,19 @@ jobs:
   candidato:
     name: Preparar manifesto auditável, sem publicar
     needs: [testes, navegador]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/auditoria-pre-segundo-turno'
+    if: (github.event_name == 'pull_request' && github.head_ref == 'fix/auditoria-pre-segundo-turno') || (github.event_name == 'push' && github.ref == 'refs/heads/fix/auditoria-pre-segundo-turno')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Manifesto da versão, bases e commit
+        env:
+          ELECTION_LAB_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           python release_candidate.py
           python release_candidate.py --verificar
