@@ -177,14 +177,13 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
 
     # A previsão nacional é apresentada como resultado de um modelo, nunca
     # como parcial TSE ou como probabilidade calibrada de vitória.
-    st.markdown('#### Soma das estimativas zonais')
+    st.markdown('#### '+('Soma nacional estimada' if nacional_habilitado else 'Soma SOMENTE das UFs cadastradas'))
     ca,cb=st.columns(2)
     ca.metric('Lula · votos finais estimados',_formatar_numero(br['lula_estimado']))
     cb.metric('Flávio · votos finais estimados',_formatar_numero(br['flavio_estimado']))
-    st.caption('Valores exclusivamente modelados. A parcial nacional oficial deve '
-               'ser consultada separadamente na aba Painel.')
+    st.caption('Valores exclusivamente modelados. '+('Não representam apuração oficial.' if nacional_habilitado else 'Cadastro incompleto: NÃO representam o Brasil.'))
 
-    with st.expander('Cenários de sensibilidade (não são intervalos de confiança)'):
+    with st.expander(('Cenários nacionais' if nacional_habilitado else 'Cenários parciais das UFs')+' (não probabilísticos)'):
         st.caption('Choques independentes no comparecimento ainda não processado '
                    'e na participação de Lula entre votos válidos restantes. '
                    'Os votos oficiais já apurados nunca são alterados.')
@@ -301,7 +300,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                            mime='text/csv',key='baixar_projecoes_zonas')
 
     tab_uf=pd.DataFrame([{'UF':uf,**v} for uf,v in sorted(resultado['ufs'].items())])
-    with st.expander('Consolidação das 28 localidades'):
+    with st.expander('Consolidação das localidades cadastradas'):
         st.dataframe(tab_uf,hide_index=True,use_container_width=True)
         st.download_button('Exportar consolidação por UF (CSV)',
                            tab_uf.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
