@@ -131,6 +131,38 @@ class TestMotorCompleto(unittest.TestCase):
         self.assertAlmostEqual(r['brasil']['lula_apurado'],53879538,places=3)
         self.assertAlmostEqual(r['brasil']['flavio_apurado'],56104503,places=3)
 
+    def test_participacao_completa_consolida_abstencao_brancos_nulos(self):
+        part={
+            self.z1:{
+                (2022,2):{'aptos':150,'comparecimento':120,'abstencoes':30,
+                          'brancos':5,'nulos':5,'validos':110},
+                (2026,1):{'aptos':160,'comparecimento':130,'abstencoes':30,
+                          'brancos':6,'nulos':6,'validos':118}},
+            self.z2:{
+                (2022,2):{'aptos':150,'comparecimento':120,'abstencoes':30,
+                          'brancos':5,'nulos':5,'validos':110},
+                (2026,1):{'aptos':160,'comparecimento':130,'abstencoes':30,
+                          'brancos':6,'nulos':6,'validos':118}}
+        }
+        self.snapshot['observacoes'][id_zona(self.z1)]={
+            'lula':44,'flavio':38,'validos':82,
+            'brancos':4,'nulos':4,'aptos':160,
+            'aptos_processados':100,'comparecimento':90,'abstencoes':10,
+            'secoes':2,'secoes_total':4,'capturado_em':self.now}
+        r=self._calcular_teste(participacao=part)
+        b=r['brasil']
+        self.assertEqual(b['zonas_modeladas_participacao'],2)
+        self.assertAlmostEqual(b['comparecimento_estimado_participacao']+
+                               b['abstencoes_estimadas_participacao'],
+                               b['aptos_estimados_participacao'])
+        self.assertGreater(b['brancos_estimados_participacao'],4)
+        self.assertGreater(b['nulos_estimados_participacao'],4)
+        self.assertEqual(r['linhas'][0]['modelo_volume'],'participacao')
+        self.assertEqual(b['lula_apurado'],44)
+        self.assertEqual(b['flavio_apurado'],38)
+        self.assertAlmostEqual(sum(x['lula_estimado'] for x in r['ufs'].values()),
+                               b['lula_estimado'])
+
     def test_chave_identidade_tse(self):
         self.assertEqual(chave_zona('sp','71072','1'),self.z1)
 
