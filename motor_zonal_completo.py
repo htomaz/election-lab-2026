@@ -66,10 +66,10 @@ def executar(snapshot, historico, nomes=None, agora=None,
         raise ValueError('Não há zonas no catálogo')
     ufs_catalogo = {k[0] for k in catalogo}
     origem = snapshot.get('catalogo_origem','')
-    catalogo_oficial = origem == 'EA12_TSE_6258'
+    catalogo_oficial = origem == 'EA16_TSE_3221'
     completo = catalogo_oficial and ufs_catalogo == set(UFS) and len(catalogo)>=5000
     if exigir_catalogo_nacional and not completo:
-        raise ValueError('Catálogo eleitoral nacional de 6258 não foi confirmado; '
+        raise ValueError('Catálogo EA16 nacional do pleito 3221 não foi confirmado; '
                          'não extrapolar amostra como projeção nacional')
     if agora is None:
         agora = datetime.now(timezone.utc).timestamp()
@@ -123,12 +123,13 @@ def executar(snapshot, historico, nomes=None, agora=None,
                                        'validos_apurados':0,'lula_estimado':0.,
                                        'flavio_estimado':0.,'zonas_total':0,
                                        'zonas_consultadas':0,'zonas_concluidas':0})
+    expiradas=set(idade_expirada)
     linhas = []
     for linha in modelo['linhas']:
         chave = chave_zona(linha['uf'],linha['municipio'],linha['zona'])
         obs = observadas.get(chave)
         if obs is None:
-            status = 'não consultada' if id_zona(chave) not in idade_expirada else 'desatualizada'
+            status = 'não consultada' if id_zona(chave) not in expiradas else 'desatualizada'
         elif obs['secoes_total'] > 0 and obs['secoes'] == obs['secoes_total']:
             status = 'concluída'
         elif obs['secoes'] > 0:
@@ -140,7 +141,8 @@ def executar(snapshot, historico, nomes=None, agora=None,
              'status':status, 'lula_restante_estimado':max(0.,linha['lula_projetado']-linha['lula_apurado']),
              'flavio_restante_estimado':max(0.,linha['flavio_projetado']-linha['flavio_apurado']),
              'votos_restantes_estimados':max(0.,lf-linha['lula_apurado']-linha['flavio_apurado']),
-             'cobertura_historica':bool(linha['historico_disponivel'])}
+             'cobertura_historica':bool(linha['historico_disponivel']),
+             'secoes_cadastradas_ea16':catalogo[chave].get('secoes_cadastradas_ea16')}
         linhas.append(r)
         for acc in (estados[chave[0]],municipios[chave[:2]]):
             acc['lula_apurado']+=linha['lula_apurado']
