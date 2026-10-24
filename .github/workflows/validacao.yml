@@ -88,3 +88,43 @@ jobs:
             /tmp/simulacao_operacional_zonas.csv
           if-no-files-found: warn
           retention-days: 15
+
+  navegador:
+    name: Navegador real - desktop e celular
+    needs: testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependências e Chromium
+        run: |
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Subir Streamlit local somente para teste
+        run: |
+          streamlit run app.py --server.headless=true --server.port=8501 \
+             --server.address=127.0.0.1 > /tmp/streamlit-app.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8501/_stcore/health >/dev/null; then
+              echo 'Streamlit respondeu ao health check'
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/streamlit-app.log
+          exit 1
+      - name: Navegar pelas três abas e registrar capturas
+        run: python visual_e2e.py
+      - name: Publicar capturas desktop/mobile e log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-desktop-mobile-auditoria
+          path: |
+            visual-auditoria/
+            /tmp/streamlit-app.log
+          retention-days: 30
+          if-no-files-found: warn
