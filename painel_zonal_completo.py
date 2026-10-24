@@ -88,6 +88,9 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                              type=['json'],key='upload_snapshot_zonas')
     origem='Prévia histórica'
     if recebido is not None:
+        if recebido.size>25*1024*1024:
+            st.error('Snapshot acima de 25 MB: tamanho não permitido no painel.')
+            return
         try:
             snap=json.loads(recebido.getvalue().decode('utf-8'))
         except (UnicodeError,ValueError) as exc:
@@ -105,6 +108,10 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
         snap=_preview_historica(base)
 
     oficial = snap.get('catalogo_origem')=='EA16_TSE_3221'
+    if recebido is not None:
+        st.warning('Arquivo fornecido pelo operador. Metadados no JSON não '
+                   'autenticam a origem do TSE nem a assinatura digital '
+                   'do arquivo; conferir proveniência e integridade.')
     if not oficial:
         st.warning('PRÉVIA COM HISTÓRICO APENAS: nenhum voto do 2º turno foi consultado. '
                    'O catálogo de 2026T1 não prova a cobertura oficial de 2026T2. '
@@ -125,6 +132,9 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
     br=resultado['brasil']
     st.caption('Origem: '+origem+' · Catálogo: '+str(br['zonas_total'])
                +' zonas · '+str(br['zonas_desatualizadas'])+' observações desatualizadas')
+    st.caption('Sobreposição do cadastro com 2026T1: '
+               f'{br["cobertura_catalogo_vs_2026t1_pct"]:.1f}%'
+               '. É diagnóstico de cobertura, não autenticação da fonte.')
     a,b,c,d=st.columns(4)
     a.metric('Zonas cadastradas',_formatar_numero(br['zonas_total']))
     b.metric('Com observação recente',_formatar_numero(br['zonas_consultadas']))
