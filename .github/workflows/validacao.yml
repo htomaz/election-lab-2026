@@ -43,3 +43,6 @@ jobs:
       - name: Validar nomes municipais contra EA12 oficial
         timeout-minutes: 2
         run: python teste_integracao_municipios.py
+      - name: Conferir catálogo oficial de municípios e zonas do 1º turno
+        timeout-minutes: 3
+        run: python teste_catalogo_zonas_tse.py
