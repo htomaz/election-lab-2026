@@ -239,4 +239,6 @@ def executar(snapshot, historico, nomes=None, agora=None,
     nacionais['metodologia']='Projeção experimental, não é resultado oficial do TSE'
     return {'linhas':linhas,'municipios':dict(municipios),'ufs':dict(estados),
             'brasil':nacionais,'observadas':observadas,
+            'diagnostico_representatividade_uf':modelo['diagnostico_representatividade_uf'],
+            'swing_estadual':modelo['swing_estadual'],
             'erros_ignorados':[], 'desatualizadas':idade_expirada}
