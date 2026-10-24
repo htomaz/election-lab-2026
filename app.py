@@ -1,4 +1,4 @@
-"""Election Lab 2026 v0.4: dashboard mobile, histórico TSE e projeção experimental."""
+"""Election Lab 2026 v0.5: dashboard mobile, histórico TSE e projeção experimental."""
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +12,7 @@ from diagnostico_zonas import diagnosticar_zonas
 from auditoria_ao_vivo import reconciliar_brasil
 from municipios_tse import obter_municipios, nome_municipio, ordenar_municipios
 from painel_zonas import exibir_painel_zonas
+from painel_zonal_completo import exibir_modelo_zonal_completo
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
@@ -340,10 +341,16 @@ def historicos():
     st.caption('Fonte: https://dadosabertos.tse.jus.br/dataset/resultados-2022 e https://dadosabertos.tse.jus.br/dataset/resultados-2026')
 
 
-aba1,aba2=st.tabs(['📈 Painel','🗂️ Históricos'])
+aba1,aba2,aba3=st.tabs(['📈 Painel','🧭 Zonas','🗂️ Históricos'])
 with aba1:
     painel()
 with aba2:
+    nomes_municipios, erro_nomes = nomes_municipais_seguros()
+    if erro_nomes:
+        st.info('Cadastro municipal não carregado nesta sessão; '
+                'os códigos TSE serão exibidos apenas onde o nome estiver ausente.')
+    exibir_modelo_zonal_completo(ROOT, nomes=nomes_municipios)
+with aba3:
     historicos()
 st.divider()
 st.caption('Election Lab 2026 v0.4 · Projeto independente. Resultado apurado = fonte TSE; projeções = estimativas experimentais, não oficiais.')
