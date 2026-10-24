@@ -68,7 +68,21 @@ def executar(snapshot, historico, nomes=None, agora=None,
     ufs_catalogo = {k[0] for k in catalogo}
     origem = snapshot.get('catalogo_origem','')
     catalogo_oficial = origem == 'EA16_TSE_3221'
-    completo = catalogo_oficial and ufs_catalogo == set(UFS) and len(catalogo)>=5000
+    # Metadado EA16, abrangências e cobertura territorial precisam
+    # ser coerentes; uma string "EA16" no upload não comprova origem.
+    metadados_ea16 = all(
+        isinstance(x.get('secoes_cadastradas_ea16'),int) and
+        x['secoes_cadastradas_ea16']>=0 for x in catalogo.values()
+    )
+    historicas={k for k,v in historico.items() if (2026,1) in v}
+    cobertura_historica=(
+        len(set(catalogo)&historicas)/len(historicas) if historicas else 0.
+    )
+    completo = (
+        catalogo_oficial and ufs_catalogo == set(UFS) and
+        6000<=len(catalogo)<=10000 and metadados_ea16 and
+        cobertura_historica>=.95
+    )
     if exigir_catalogo_nacional and not completo:
         raise ValueError('Catálogo EA16 nacional do pleito 3221 não foi confirmado; '
                          'não extrapolar amostra como projeção nacional')
@@ -216,6 +230,8 @@ def executar(snapshot, historico, nomes=None, agora=None,
         'zonas_concluidas':sum(x['zonas_concluidas'] for x in estados.values()),
         'catalogo_oficial_nacional':completo,
         'catalogo_origem':origem,
+        'cobertura_catalogo_vs_2026t1_pct':100*cobertura_historica,
+        'ea16_metadados_validos':metadados_ea16,
         'zonas_modeladas_participacao':sum(
             x['zonas_modeladas_participacao'] for x in estados.values()),
         'aptos_estimados_participacao':sum(
