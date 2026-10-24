@@ -39,6 +39,29 @@ expressa do responsável.** Apuração oficial começa em 25/10/2026,
   artefato e cache recuperável entre execuções. O cache é melhor
   esforço e NÃO equivale a banco persistente durável.
 
+## Resultado dos ensaios pré-apuração em 24/10/2026
+
+O GitHub Actions [run #316](https://github.com/htomaz/election-lab-2026/actions/runs/40062284189)
+terminou com sucesso: 83 testes unitários/integração, conciliação
+histórica, simulações e backtests.
+
+- EA16 **pleito 3220 (1º turno)**: 6.292 zonas em 28 localidades,
+  igualdade exata com 6.292 zonas históricas, nenhuma UF com falha.
+- EA16 **pleito 3221 (2º turno)**: 6.292 zonas em 28 localidades,
+  igualdade exata com a base histórica, nenhuma UF com falha.
+  **Este resultado confirma somente o CADASTRO de zonas e seções
+  já publicado pelo TSE, não votos oficiais do segundo turno.**
+- EA11 confirmou 3221/6258 e cargo Presidente antes da apuração.
+- Simulação do motor: 6.292 zonas, estágios 0/5/25/50/100%,
+  0,25–0,4 segundo por rodada e aproximadamente 110 MB de
+  memória máxima no runner do GitHub.
+- Simulação do coletor sem rede: 500 zonas, retomada de 5.792,
+  6.292 consultas recentes evitadas e 50 reconsultas após 200s;
+  snapshot total ~1,71 MB, duração ~2,19 segundos **sem latência HTTP**.
+- O pipeline de CI deixa as consultas extensas de EA16 nacional
+  como comandos MANUAIS para não requisitar milhares de vezes a CDN
+  oficial em cada commit. Reexecutá-las apenas por motivo operacional.
+
 ## Ações e verificações ANTES do horário oficial
 
 1. Conferir `python preflight_tse.py` e observar se o EA11 oficial
@@ -46,7 +69,7 @@ expressa do responsável.** Apuração oficial começa em 25/10/2026,
    pode aparecer antes, mas não comprova que o 3221 está ativo.
 2. Rodar `python preflight_catalogo_todas_ufs.py` para inspecionar
    o EA16 do 1º turno, inclusive ZZ, e `python teste_catalogo_zonas_tse.py`.
-   Isso **não** garante que a configuração EA16 do segundo turno já exista.
+   Já confirmado em 24/10: o catálogo EA16 3221 tem as 6.292 zonas,\n   mas nenhum voto real foi homologado antes da abertura da apuração.
 3. Reexecutar GitHub Actions da branch e exigir pipeline verde completo;
    não considerar erro de teste UI como sucesso de homologação.
 4. Conferir que os 6.292 registros históricos têm correspondência
@@ -80,6 +103,7 @@ expressa do responsável.** Apuração oficial começa em 25/10/2026,
 
 ```bash
 python preflight_tse.py --exigir-segundo-turno
+python preflight_catalogo_todas_ufs.py --pleito 3221
 python coletor_zonal.py --uf SP --limite 100 --taxa 12
 python coletor_zonal.py --todas --limite 10000 --taxa 12
 ```
