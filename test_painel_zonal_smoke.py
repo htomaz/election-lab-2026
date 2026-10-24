@@ -1,6 +1,7 @@
 """Smoke-test executando o Streamlit, não só compilando módulos Python."""
 import unittest
 import json
+import time
 import shutil
 import tempfile
 from pathlib import Path
@@ -35,7 +36,7 @@ class TestPainelZonalSmoke(unittest.TestCase):
                     'uf':'SP','municipio':'71072','zona':'0001',
                     'lula':60,'flavio':40,'validos':100,
                     'secoes':1,'secoes_total':1,
-                    'capturado_em':1800000000,
+                    'capturado_em':time.time(),
                     'geracao':'25/10/2026 18:00:00',
                     'fase':'o','turno':'2'}}
             }
