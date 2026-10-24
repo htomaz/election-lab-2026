@@ -219,7 +219,7 @@ def painel():
             xaxis=dict(title='Seções totalizadas (%)',range=[0,101]),
             yaxis=dict(title='Votos válidos (%)',range=[20,80]),
             hovermode='x unified',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig,use_container_width=True,config={'displayModeBar':False,'responsive':True})
+        st.plotly_chart(fig,width="stretch",config={'displayModeBar':False,'responsive':True})
         if demo:
             st.caption('Trajetórias fictícias apenas para testar o painel.')
         else:
@@ -239,7 +239,7 @@ def painel():
                 dz = ler_diagnostico(str(caminho_zonas), caminho_zonas.stat().st_mtime_ns)
                 st.caption('Dispersão ponderada das preferências históricas entre zonas. '
                            'Sem parciais por zona em 2026, não há correção geográfica em tempo real.')
-                st.dataframe(dz, hide_index=True, use_container_width=True)
+                st.dataframe(dz, hide_index=True, width="stretch")
             except (OSError, ValueError) as exc:
                 st.error(f'Histórico territorial inválido: {exc}')
         else:
@@ -264,7 +264,7 @@ def painel():
             if mostrar:
                 colunas += ['Lula histórico (%)','Lula projeção (%)','Lula projetado','Flávio projetado']
             tabela=df[colunas]
-            st.dataframe(tabela,hide_index=True,use_container_width=True)
+            st.dataframe(tabela,hide_index=True,width="stretch")
             st.download_button('Baixar tabela CSV',tabela.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
                 file_name='apuracao_por_uf.csv',mime='text/csv')
     else:
@@ -357,7 +357,7 @@ def historicos():
             subset['Lula (%) válidos']=100*subset['lula']/subset['validos'].replace(0,float('nan'))
             subset['Candidato 22 (%) válidos']=100*subset['direita']/subset['validos'].replace(0,float('nan'))
             st.dataframe(subset[['ano','turno','lula','direita','validos','Lula (%) válidos','Candidato 22 (%) válidos']],
-                hide_index=True,use_container_width=True)
+                hide_index=True,width="stretch")
             st.caption('Em 2022, o número 22 corresponde a Jair Bolsonaro; em 2026, a Flávio Bolsonaro. Os percentuais de 2026 usam todos os votos válidos do primeiro turno como denominador.')
         except Exception as e:
             st.error(f'Falha na leitura do histórico territorial: {e}')

@@ -167,7 +167,7 @@ def exibir_painel_zonas(root, peso, volume, intensidade, demonstracao=False,
         tab=tab.rename(columns={'municipio':'Código TSE','zona':'Zona eleitoral'})
         tab=tab.sort_values(['Município','Zona eleitoral'],kind='stable')
         apresentacao=tab.drop(columns=['Código TSE'])
-        st.dataframe(apresentacao,hide_index=True,use_container_width=True)
+        st.dataframe(apresentacao,hide_index=True,width="stretch")
         st.download_button('Exportar tabela zonal (CSV)',
                            tab.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
                            file_name=f'zonas_{selecionada.lower()}_election_lab.csv',

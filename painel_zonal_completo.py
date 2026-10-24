@@ -219,7 +219,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                          f"Novas gerações: {prova['atualizadas']} · "
                          f"Inconclusivas: {prova['inconclusivas']}")
                 st.dataframe(pd.DataFrame(prova['detalhes']),
-                             hide_index=True,use_container_width=True)
+                             hide_index=True,width="stretch")
                 if prova['divergentes']:
                     st.error('A fonte reconsultada diverge do snapshot. '
                              'Não interpretar esse arquivo como autenticado.')
@@ -304,7 +304,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                         }
                         st.write('Brasil: '+audit['nacional']['status'])
                         st.dataframe(pd.DataFrame(audit['por_uf']),
-                                     hide_index=True,use_container_width=True)
+                                     hide_index=True,width="stretch")
                         if audit['bloqueantes']:
                             auditoria_bloqueou=True
                             st.error('Divergências impeditivas em: '+
@@ -339,7 +339,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
              'Votos válidos':r['validos_apurados']}
             for r in resultado['linhas'] if r['validos_apurados']>0])
         if not brutos.empty:
-            st.dataframe(brutos,hide_index=True,use_container_width=True)
+            st.dataframe(brutos,hide_index=True,width="stretch")
         return
     if historico_participacao is not None:
         proporcao=br['cobertura_modelo_participacao_pct']
@@ -484,7 +484,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
     quadro=pd.DataFrame([{nome:r.get(c) for c,nome in colunas.items()} for r in linhas])
     if not quadro.empty:
         quadro=quadro.sort_values(['Município','Zona'])
-        st.dataframe(quadro,hide_index=True,use_container_width=True,height=420)
+        st.dataframe(quadro,hide_index=True,width="stretch",height=420)
         st.download_button('Exportar detalhamento zonal (CSV)',
                            quadro.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
                            file_name=f'election_lab_zonas_{escolhida}.csv',
@@ -492,7 +492,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
 
     tab_uf=pd.DataFrame([{'UF':uf,**v} for uf,v in sorted(resultado['ufs'].items())])
     with st.expander('Consolidação das localidades cadastradas'):
-        st.dataframe(tab_uf,hide_index=True,use_container_width=True)
+        st.dataframe(tab_uf,hide_index=True,width="stretch")
         st.download_button('Exportar consolidação por UF (CSV)',
                            tab_uf.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
                            file_name='election_lab_ufs_derivadas_de_zonas.csv',
