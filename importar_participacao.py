@@ -39,6 +39,7 @@ def _inteiro(linha,campo,padrao=None):
 def ler_zip(caminho,ano,turno):
     caminho=Path(caminho)
     mapa={}
+    anteriores_diagnostico={}
     if not caminho.exists():
         raise FileNotFoundError(caminho)
     with zipfile.ZipFile(caminho) as arquivo:
@@ -73,7 +74,14 @@ def ler_zip(caminho,ano,turno):
                         raise ValueError('Município/zona com código inválido')
                     chave=(uf,codigo,zona,ano,turno)
                     if chave in mapa:
-                        raise ValueError(f'Duplicação de zona/cargo/turno em {nome}: {chave}')
+                        campos=['DT_ELEICAO','CD_ELEICAO','CD_PLEITO','TP_ABRANGENCIA',
+                                'NM_MUNICIPIO','NR_TURNO','CD_CARGO','QT_APTOS',
+                                'QT_COMPARECIMENTO','QT_ABSTENCOES','QT_VOTOS_VALIDOS',
+                                'QT_VOTOS_BRANCOS','QT_VOTOS_NULOS']
+                        atual={k:r.get(k) for k in campos if k in r}
+                        ant=anteriores_diagnostico.get(chave)
+                        raise ValueError(f'Duplicação de zona/cargo/turno em {nome}: '
+                                         f'{chave} - anterior={ant} - atual={atual}')
                     aptos=_inteiro(r,'QT_APTOS')
                     comp=_inteiro(r,'QT_COMPARECIMENTO')
                     abst=_inteiro(r,'QT_ABSTENCOES')
@@ -89,6 +97,12 @@ def ler_zip(caminho,ano,turno):
                     # O TSE documenta exceções pontuais por transferências
                     # temporárias, portanto não exigir aptos == comp+abst.
                     mapa[chave]=(aptos,comp,abst,br,nul,vv)
+                    anteriores_diagnostico[chave]={
+                        k:r.get(k) for k in ('DT_ELEICAO','CD_ELEICAO','CD_PLEITO',
+                           'TP_ABRANGENCIA','NM_MUNICIPIO','NR_TURNO','CD_CARGO',
+                           'QT_APTOS','QT_COMPARECIMENTO','QT_ABSTENCOES',
+                           'QT_VOTOS_VALIDOS','QT_VOTOS_BRANCOS','QT_VOTOS_NULOS')
+                        if k in r}
     if not mapa:
         raise ValueError(f'ZIP sem Presidente {ano}T{turno}')
     return mapa
