@@ -48,3 +48,23 @@ jobs:
         run: python teste_catalogo_zonas_tse.py
       - name: Reconciliar comparecimento, abstenção e votos por zona
         run: python validar_participacao.py
+      - name: Importar referência de comparecimento do primeiro turno de 2022
+        timeout-minutes: 6
+        run: python obter_participacao_tse.py --ano 2022 --turno 1
+      - name: Exportar somente registros de 2022 primeiro turno
+        run: |
+          python - <<'PY'
+          import csv
+          with open('historico_participacao_zonas.csv',newline='',encoding='utf-8') as f:
+              r=list(csv.DictReader(f))
+          registros=[x for x in r if (x['ano'],x['turno'])==('2022','1')]
+          print('TRANSICAO_COVERAGE:',len(registros))
+          if len(registros)<6000:
+              raise SystemExit('Histórico de 2022T1 incompleto')
+          print('TRANSICAO_EXPORT_START')
+          for row in registros:
+              print('TRANSICAO_ROW:'+','.join(row[c] for c in (
+                   'uf','municipio','zona','ano','turno','aptos','comparecimento',
+                   'abstencoes','brancos','nulos','validos')))
+          print('TRANSICAO_EXPORT_END')
+          PY
