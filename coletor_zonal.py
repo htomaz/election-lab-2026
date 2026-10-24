@@ -27,47 +27,79 @@ from auditoria_ao_vivo import validar_substituicao
 from motor_zonal_completo import chave_zona, id_zona
 from tse import ELEICAO, UFS, baixar_zona, resultado_disponivel
 
-EA12_URL = (
-    f'https://resultados.tse.jus.br/oficial/ele2026/{ELEICAO}/'
-    f'config/mun-e{ELEICAO:06d}-cm.json'
+PLEITO = 3221  # Eleições gerais 2026 - segundo turno
+EA16_URL = (
+    'https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/'
+    f'{PLEITO}/config/{{uf}}/{{uf}}-p{PLEITO:06d}-cs.json'
 )
 BLOQUEANTES = ('403','404','429')
 
 
-def catalogar_ea12(payload):
-    """Somente zonas listadas na configuração oficial, evitando URLs inventadas."""
+def catalogar_ea16(payload, uf=None):
+    """Transforma EA16 UF→município→zona→seção em catálogo de zonas válidas.
+
+    A lista de municípios EA12 NÃO contém necessariamente os vínculos por
+    zona; estes estão no arquivo EA16 de configuração de seções.
+    """
     if not isinstance(payload,dict) or not isinstance(payload.get('abr'),list):
-        raise ValueError('EA12 sem abrangências')
+        raise ValueError('EA16 sem abrangências')
     catalogo={}
+    encontrados=set()
     for local in payload['abr']:
-        uf=str(local.get('cd','')).upper().strip()
-        if uf not in UFS:
+        local_uf=str(local.get('cd','')).upper().strip()
+        if local_uf not in UFS or (uf is not None and local_uf!=uf.upper()):
             continue
+        encontrados.add(local_uf)
         for mu in local.get('mu',[]):
             nome=str(mu.get('nm','')).strip()
-            for z in mu.get('zon',[]):
-                chave=chave_zona(uf,mu.get('cd',''),z.get('cd',''))
+            if not isinstance(mu.get('zon'),list):
+                raise ValueError(f'EA16 sem zonas do município {local_uf}/{mu.get("cd")}')
+            for z in mu['zon']:
+                chave=chave_zona(local_uf,mu.get('cd',''),z.get('cd',''))
                 if chave in catalogo:
-                    raise ValueError(f'Chave duplicada EA12: {chave}')
+                    raise ValueError(f'Chave duplicada EA16: {chave}')
+                secoes=z.get('sec',[])
+                if not isinstance(secoes,list):
+                    raise ValueError(f'EA16: seções inválidas {chave}')
                 catalogo[chave]={'uf':chave[0],'municipio':chave[1],
-                                 'zona':chave[2],'nome':nome}
-    if not catalogo:
-        raise ValueError('EA12 sem zonas; não iniciar coleta')
+                                 'zona':chave[2],'nome':nome,
+                                 'secoes_cadastradas_ea16':len(secoes)}
+    if not catalogo or (uf is not None and uf.upper() not in encontrados):
+        raise ValueError(f'EA16 sem zonas da abrangência {uf or "BR"}')
     return catalogo
 
 
-def baixar_catalogo(http_get=None):
+def baixar_catalogo(http_get=None, abrangencias=None, pleito=PLEITO):
+    """Baixa EA16 de cada UF; usa somente zonas descritas na fonte oficial."""
     pegar=http_get or requests.get
-    resposta=pegar(EA12_URL,timeout=(5,25),
-                   headers={'User-Agent':'ElectionLab2026/0.6 (catalogo EA12 TSE)'})
-    resposta.raise_for_status()
-    return catalogar_ea12(resposta.json())
+    catalogo={}
+    ufs=list(abrangencias or UFS)
+    for uf in ufs:
+        uf=uf.upper()
+        if uf not in UFS:
+            raise ValueError(f'UF EA16 inválida: {uf}')
+        url=(
+            'https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/'
+            f'{pleito}/config/{uf.lower()}/{uf.lower()}-p{pleito:06d}-cs.json'
+        )
+        resposta=pegar(url,timeout=(5,30),
+                       headers={'User-Agent':'ElectionLab2026/0.6 (catalogo EA16 TSE)'})
+        resposta.raise_for_status()
+        por_uf=catalogar_ea16(resposta.json(),uf=uf)
+        if set(catalogo).intersection(por_uf):
+            raise ValueError(f'Zonas repetidas entre arquivos EA16: {uf}')
+        catalogo.update(por_uf)
+    if len(ufs)==len(UFS) and (
+        len(catalogo)<5000 or {k[0] for k in catalogo}!=set(UFS)
+    ):
+        raise ValueError('Catálogo EA16 nacional incompleto')
+    return catalogo
 
 
 def carregar_arquivo(caminho):
     caminho=Path(caminho)
     if not caminho.exists():
-        return {'versao':1,'eleicao':ELEICAO,'catalogo_origem':'EA12_TSE_6258',
+        return {'versao':1,'eleicao':ELEICAO,'catalogo_origem':'EA16_TSE_3221',
                 'catalogo':[],'observacoes':{},'atualizado_em':None,
                 'erros_ultima_rodada':[]}
     with caminho.open(encoding='utf-8') as f:
@@ -123,11 +155,12 @@ def coletar(caminho, uf=None, todas=False, limite=300, taxa=12.,
     catalogo=origem if origem is not None else baixar_catalogo()
     if not catalogo:
         raise ValueError('Catálogo vazio')
-    if qualquer:=({k[0] for k in catalogo} - set(UFS)):
-        raise ValueError(f'UFs inválidas: {qualquer}')
+    invalidas={k[0] for k in catalogo} - set(UFS)
+    if invalidas:
+        raise ValueError(f'UFs inválidas: {invalidas}')
     dados=carregar_arquivo(caminho)
     dados['catalogo']=[catalogo[k] for k in sorted(catalogo)]
-    dados['catalogo_origem']='EA12_TSE_6258' if origem is None else 'EA12_TSE_6258'
+    dados['catalogo_origem']='EA16_TSE_3221' if origem is None else 'CATALOGO_INJETADO_TESTE'
     antigo=dados['observacoes']
     # Atribuir novas chaves somente depois de validar o catálogo. Elimina extintas.
     conjunto={id_zona(k) for k in catalogo}
