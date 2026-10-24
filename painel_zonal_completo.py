@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 from pathlib import Path
 import pandas as pd
 import streamlit as st
@@ -21,6 +22,7 @@ from motor_zonal_completo import executar, ler_snapshot
 from municipios_tse import nome_municipio
 from sensibilidade_zonal import faixa_sensibilidade
 from proveniencia_tse import auditar_amostra
+from backup_actions import recuperar as recuperar_actions
 from tse import baixar_zona
 
 
@@ -88,6 +90,43 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                 'comparecimento, brancos e nulos. O modelo preserva o método '
                 'anterior de volume de votos, sem estimar essas parcelas individualmente. '
                 'Importe os arquivos oficiais detalhe_votacao_munzona de 2022 e 2026.')
+    local_snapshot=root/'dados_zonais_6258.json'
+    with st.expander('Backup e recuperação de snapshots zonais'):
+        if local_snapshot.is_file():
+            tamanho=local_snapshot.stat().st_size
+            if tamanho<=25*1024*1024:
+                st.download_button('Baixar snapshot local (JSON)',
+                                   local_snapshot.read_bytes(),
+                                   file_name='dados_zonais_6258.json',
+                                   mime='application/json',key='baixar_json_zonal')
+            else:
+                st.warning('Snapshot local acima de 25 MB. Use backup do coletor.')
+        token=os.environ.get('GITHUB_SNAPSHOT_TOKEN','')
+        if not token:
+            try:
+                token=str(st.secrets.get('GITHUB_SNAPSHOT_TOKEN',''))
+            except (FileNotFoundError,KeyError):
+                token=''
+        if token:
+            if st.button('Recuperar último artifact validado do GitHub',
+                         key='recuperar_backup_zonal'):
+                try:
+                    with st.spinner('Verificando SHA-256 e conciliando os arquivos...'):
+                        resultado_backup=recuperar_actions(local_snapshot,token=token)
+                    if resultado_backup['restaurado']:
+                        st.success('Snapshot recuperado: '
+                                   +str(resultado_backup['zonas_com_votos'])
+                                   +' zonas com observações preservadas.')
+                        st.rerun()
+                    else:
+                        st.info('Nenhum backup verificável encontrado.')
+                except (ValueError,OSError,KeyError) as exc:
+                    st.error('Backup rejeitado: '+str(exc))
+        else:
+            st.caption('Restauração automática requer GITHUB_SNAPSHOT_TOKEN '
+                       'somente leitura em Settings > Secrets do Streamlit. '
+                       'Sem token, baixe o artifact no GitHub Actions e '
+                       'carregue o JSON abaixo.')
     recebido=st.file_uploader('Carregar snapshot oficial EA20 por zona (JSON)',
                              type=['json'],key='upload_snapshot_zonas')
     origem='Prévia histórica'
