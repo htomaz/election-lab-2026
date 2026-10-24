@@ -117,6 +117,12 @@ class TestParticipacao(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'supera eleitorado processado'):
             normalizar_ea20(payload,'SP')
 
+    def test_base_oficial_zonal_reconcilia_com_votos_dos_candidatos(self):
+        from validar_participacao import auditar
+        res=auditar()
+        self.assertEqual(res['(2022, 2)']['zonas'],6283)
+        self.assertEqual(res['(2026, 1)']['zonas'],6292)
+
     def test_zip_filtra_cargo_e_turno_e_nao_duplica(self):
         cab='NR_TURNO;SG_UF;CD_MUNICIPIO;NR_ZONA;CD_CARGO;QT_APTOS;QT_COMPARECIMENTO;QT_ABSTENCOES;QT_VOTOS_VALIDOS;QT_VOTOS_BRANCOS;QT_VOTOS_NULOS\n'
         row='1;SP;71072;1;1;100;80;20;75;2;3\n'
