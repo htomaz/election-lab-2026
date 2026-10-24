@@ -101,12 +101,19 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
     total_secoes=int(x.get('secoes_total',0))
     secoes=int(x.get('secoes',0))
     processados=x.get('aptos_processados')
+    # Eleitorado instalado (e.esi) é a base para taxa de participação.
+    # Eleitorado totalizado (e.est) abrange também seções não instaladas
+    # e deve continuar sendo abatido do eleitorado restante (e.te).
+    instalados=x.get('aptos_instalados')
+    nao_instalados=x.get('aptos_nao_instalados')
+    nao_apurados=x.get('aptos_nao_apurados')
     comparecimento=x.get('comparecimento')
     abstencoes=x.get('abstencoes')
     brancos=x.get('brancos')
     nulos=x.get('nulos')
     if any(z is not None and float(z)<0 for z in
-           (processados,comparecimento,abstencoes,brancos,nulos)):
+           (processados,instalados,nao_instalados,nao_apurados,
+            comparecimento,abstencoes,brancos,nulos)):
         raise ValueError('Valores de abstenção ou votos negativos')
     if (secoes<0 or total_secoes<0 or
         total_secoes>0 and secoes>total_secoes):
@@ -118,11 +125,20 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
         # Atribui zero observado em zonas ainda não consultadas.
         processados=comparecimento=abstencoes=brancos=nulos=0
     processados=float(processados)
+    instalados=float(instalados) if instalados is not None else None
+    nao_instalados=(float(nao_instalados)
+                    if nao_instalados is not None else None)
+    nao_apurados=float(nao_apurados) if nao_apurados is not None else None
     comparecimento=float(comparecimento)
     abstencoes=float(abstencoes)
     brancos=float(brancos)
     nulos=float(nulos)
     if (comparecimento+abstencoes>processados+1 or
+        (instalados is not None and (
+            comparecimento+abstencoes>instalados+1 or
+            instalados>processados+1)) or
+        (nao_instalados is not None and
+         nao_instalados>processados+1) or
         votos_obs+brancos+nulos>comparecimento+1 or
         processados>aptos+1):
         raise ValueError('Eleitorado e votos observados incompatíveis')
@@ -143,8 +159,13 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
     taxa_v=limitar(prior['valid']+a_uf.get('valid',0.),0.,1.)
     taxa_b=limitar(prior['blank']+a_uf.get('blank',0.),0.,1.)
     taxa_n=limitar(prior['null']+a_uf.get('null',0.),0.,1.)
-    if processados>0:
-        turnout_obs=comparecimento/processados
+    # Quando e.esi está disponível, excluir do denominador os eleitores
+    # de seções não instaladas. Sem e.esi, recusar atualizar a taxa em
+    # zonas que informam e.esni>0 (denominador enviesado).
+    denominador_taxa=(instalados if instalados is not None else
+                      (processados if not nao_instalados else 0.))
+    if denominador_taxa>0:
+        turnout_obs=comparecimento/denominador_taxa
         taxa_t=limitar(taxa_t+
                        ganho*limitar(turnout_obs-taxa_t,-.12,.12),0.,1.)
     if comparecimento>0:
@@ -173,6 +194,9 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
         'prior_origem':prior['origem'],
         'aptos_estimados':aptos,
         'aptos_processados':processados,
+        'aptos_instalados':instalados,
+        'aptos_nao_instalados':nao_instalados,
+        'aptos_nao_apurados':nao_apurados,
         'aptos_restantes':faltantes,
         'taxa_comparecimento_historica':prior['turnout'],
         'taxa_comparecimento_estimada_restante':taxa_t,
