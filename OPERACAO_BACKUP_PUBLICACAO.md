@@ -70,23 +70,26 @@ configuração independente. São rejeitados algoritmos diferentes,
 chaves fornecidas no próprio JWS, assinaturas adulteradas e
 conteúdos que não coincidem com a zona do snapshot.
 
-**A verificação criptográfica depende de uma configuração externa que
-ainda não foi fornecida:** copiar o valor de 32 bytes Ed25519 do
-**Apêndice B do manual oficial do TSE**, conferir sua procedência e
-salvá-lo como `TSE_JWS_PUBLIC_KEY_B64` no Streamlit Secrets.
-Nenhuma chave de terceiro foi embutida no código. Após configurar,
-a aba Zonas permite enviar um JWS da zona escolhida ou buscar um
-único arquivo assinado na CDN oficial, validá-lo e compará-lo com
-o snapshot. A contagem de zonas autenticadas é por snapshot, nunca
-generalizada a todo o Brasil.
+**A chave pública OFICIAL já está configurada automaticamente no código.**
+Ela foi transcrita e conferida diretamente no **Apêndice B, página 8**,
+do manual do TSE publicado em 16/09/2026:
+`kWlpNHjuws1csyQZwzn3Fhzbi3RD435RbpThtSr4hMc`
+com identificador `kid=sNbt9Q_fLS65zE1_ZLNV-XRRwPY`.
+Trata-se de CHAVE PÚBLICA (não secreta), portanto não exige token,
+senha ou alteração em Streamlit Secrets.
 
-Sem chave pública, esta função permanece desativada (fail-closed).
-SHA-256, HTTPS e amostra reconsultada continuam sendo verificações
-**complementares**, nunca equivalentes a JWS.
-A assinatura JWS autentica a publicação; não atesta independentemente
-os boletins de urna ou o processo integral de transmissão/totalização.
-Manual oficial:
-https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados
+O verificador rejeita JWS com outro `kid`, inclusive a chave de
+DESENVOLVIMENTO do Apêndice A. A aba Zonas permite verificar uma zona
+contra o JWS público da CDN do TSE (ou carregar arquivo JWS) e compara
+a assinatura válida com os votos efetivamente armazenados no snapshot.
+
+Sem JWS real da zona, a verificação criptográfica permanece pendente.
+Confrontar votos por HTTPS e hashes locais **não equivale** a JWS.
+Uma assinatura válida autentica a publicação assinada, mas não atesta
+isoladamente todo o processo de totalização ou cadeia X.509/LCR.
+
+Manual oficial (ver Apêndice B, pg. 8):
+https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws
 
 ## 4. Publicação reproduzível, SEM DEPLOY
 
@@ -95,7 +98,9 @@ commit exato do Git, branch, versão de Python e hashes SHA-256
 de códigos críticos, dependências e arquivos históricos.
 
 O job `candidato` só é executado após o sucesso dos jobs **testes**
-e **navegador** e somente em push para a branch de auditoria.
+e **navegador**, em pull request ou push da branch de auditoria.
+Para pull requests, os três jobs usam exatamente o SHA da branch de
+origem — não o commit de merge sintético gerado pelo GitHub.
 O artifact `release-candidate-sha256` permite verificar
 os mesmos bytes em outra máquina antes de qualquer publicação.
 Não há credenciais de escrita, nem deploy, nem `git merge` no CI.
