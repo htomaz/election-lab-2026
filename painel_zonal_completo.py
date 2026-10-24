@@ -98,7 +98,7 @@ def exibir_modelo_zonal_completo(root,nomes=None):
     else:
         snap=_preview_historica(base)
 
-    oficial = snap.get('catalogo_origem')=='EA12_TSE_6258'
+    oficial = snap.get('catalogo_origem')=='EA16_TSE_3221'
     if not oficial:
         st.warning('PRÉVIA COM HISTÓRICO APENAS: nenhum voto do 2º turno foi consultado. '
                    'O catálogo de 2026T1 não prova a cobertura oficial de 2026T2. '
