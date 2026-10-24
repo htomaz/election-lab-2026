@@ -52,6 +52,9 @@ jobs:
       - name: Pré-voo nacional EA16 do primeiro turno para as 28 localidades
         timeout-minutes: 6
         run: python preflight_catalogo_todas_ufs.py
+      - name: Testar uma única UF do catálogo EA16 do segundo turno (sem votos)
+        timeout-minutes: 2
+        run: python preflight_ea16_segundo_turno.py
       - name: Reconciliar comparecimento, abstenção e votos por zona
         run: python validar_participacao.py
       - name: Backtest 2022 participação, abstenção, brancos e nulos
