@@ -20,6 +20,8 @@ from auditoria_snapshot_zonal import auditar_parciais
 from motor_zonal_completo import executar, ler_snapshot
 from municipios_tse import nome_municipio
 from sensibilidade_zonal import faixa_sensibilidade
+from proveniencia_tse import auditar_amostra
+from tse import baixar_zona
 
 
 @st.cache_data(show_spinner=False)
@@ -152,6 +154,31 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                    'localidades ainda depende predominantemente do histórico.')
     hash_snapshot=hashlib.sha256(json.dumps(
         snap,sort_keys=True,ensure_ascii=False).encode('utf-8')).hexdigest()
+    if oficial and resultado_disponivel() and snap.get('observacoes'):
+        with st.expander('Conferir proveniência de uma amostra EA20 no TSE'):
+            st.caption('Verifica até cinco zonas consultando diretamente a '
+                       'CDN oficial. Uma amostra não autentica todos os '
+                       'resultados, e SHA-256 não substitui assinatura JWS.')
+            if st.button('Confrontar 5 zonas com a fonte oficial',
+                         key='checar_proveniencia_amostra'):
+                with st.spinner('Conferindo origem, geração, contagens e hash...'):
+                    prova=auditar_amostra(snap,baixar_zona,max_zonas=5)
+                st.session_state['proveniencia_zonal_ultima']={
+                    'hash_snapshot':hash_snapshot,'resultado':prova}
+            atual=st.session_state.get('proveniencia_zonal_ultima')
+            if atual and atual.get('hash_snapshot')==hash_snapshot:
+                prova=atual['resultado']
+                st.write(f"Zonas reconsultadas: {prova['consultadas']} · "
+                         f"Coincidentes: {prova['confirmadas']} · "
+                         f"Divergentes: {prova['divergentes']} · "
+                         f"Novas gerações: {prova['atualizadas']} · "
+                         f"Inconclusivas: {prova['inconclusivas']}")
+                st.dataframe(pd.DataFrame(prova['detalhes']),
+                             hide_index=True,use_container_width=True)
+                if prova['divergentes']:
+                    st.error('A fonte reconsultada diverge do snapshot. '
+                             'Não interpretar esse arquivo como autenticado.')
+                st.caption(prova['nota'])
     auditoria_anterior=st.session_state.get('auditoria_zonal_ultima')
     auditoria_bloqueou=bool(
         auditoria_anterior and
