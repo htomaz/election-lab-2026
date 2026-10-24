@@ -119,9 +119,11 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                    'O catálogo de 2026T1 não prova a cobertura oficial de 2026T2. '
                    'Todos os números de projeção desta tela são experimentais.')
     else:
-        st.info('Snapshot oficial EA16/EA20. Os arquivos zonais podem representar '
-                'momentos distintos, por isso a projeção é experimental e '
-                'não substitui o resultado oficial BR/UF.')
+        st.info('Snapshot com metadados EA16/EA20 do pleito 3221. '
+                'A presença desses metadados não autentica o JSON, '
+                'especialmente se foi enviado por upload. As zonas podem '
+                'representar gerações distintas; a projeção é experimental '
+                'e não substitui o resultado oficial BR/UF.')
     try:
         resultado=executar(snap,base,nomes=nomes or {},
                           exigir_catalogo_nacional=False,
