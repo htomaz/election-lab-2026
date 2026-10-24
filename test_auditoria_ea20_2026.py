@@ -19,7 +19,7 @@ def payload_ea20():
       'e':{'te':220,'est':120,'esi':100,'esni':20,
            'esa':100,'esna':0,'esnt':100,
            'c':80,'a':20},
-      'v':{'tv':85,'vv':75,'vb':5,'tvn':5,'vn':5,'vnt':0},
+      'v':{'tv':80,'vv':75,'vb':2,'tvn':3,'vn':3,'vnt':0},
       'carg':[{'cd':'1','agr':[{'par':[{'cand':[
            {'n':'13','vap':40},{'n':'22','vap':35}]}]}]}]
     }
@@ -46,7 +46,7 @@ class TestAuditoriaOficialEA20(unittest.TestCase):
         self.assertEqual(out['aptos_processados'],120)
         self.assertEqual(out['aptos_instalados'],100)
         self.assertEqual(out['aptos_nao_instalados'],20)
-        self.assertEqual(out['nulos'],5)  # tvn inclui nulos técnicos
+        self.assertEqual(out['nulos'],3)  # tvn inclui nulos técnicos
 
     def test_taxa_comparecimento_usa_instalados_e_nao_totalizados(self):
         p=normalizar_ea20(payload_ea20(),'SP',abrangencia_esperada='zona',
