@@ -42,11 +42,11 @@ class TestPainelZonalSmoke(unittest.TestCase):
             (p/'dados_zonais_6258.json').write_text(
                 json.dumps(snap),encoding='utf-8')
             code=(
-                'from pathlib import Path\\n'
-                'from unittest.mock import patch\\n'
-                'from painel_zonal_completo import exibir_modelo_zonal_completo\\n'
-                "with patch('painel_zonal_completo.resultado_disponivel', return_value=True):\\n"
-                f'    exibir_modelo_zonal_completo(Path({str(p)!r}),nomes={{}})\\n'
+                'from pathlib import Path\n'
+                'from unittest.mock import patch\n'
+                'from painel_zonal_completo import exibir_modelo_zonal_completo\n'
+                "with patch('painel_zonal_completo.resultado_disponivel', return_value=True):\n"
+                f'    exibir_modelo_zonal_completo(Path({str(p)!r}),nomes={{}})\n'
             )
             app=AppTest.from_string(code,default_timeout=90).run()
             self.assertFalse(app.exception,[str(x.message) for x in app.exception])
