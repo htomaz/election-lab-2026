@@ -12,6 +12,8 @@ import pandas as pd
 import streamlit as st
 
 from modelo_zonas import carregar_zonas
+from coletor_zonal import coletar
+from tse import resultado_disponivel
 from motor_zonal_completo import executar, ler_snapshot
 from municipios_tse import nome_municipio
 
@@ -125,6 +127,24 @@ def exibir_modelo_zonal_completo(root,nomes=None):
         return
     escolhida=st.selectbox('UF',ufs,index=ufs.index('SP') if 'SP' in ufs else 0,
                            key='uf_zonal_completo')
+    if resultado_disponivel():
+        if st.button('Consultar até 100 zonas oficiais desta UF agora',
+                     disabled=recebido is not None,key='coletar_uf_todas_zonas'):
+            try:
+                with st.spinner('Coletando zonas com limite de 12 consultas/segundo...'):
+                    resumo=coletar(root/'dados_zonais_6258.json',
+                                  uf=escolhida,limite=100,taxa=12.,concorrencia=8)
+                st.success(str(resumo['atualizadas'])+' zonas atualizadas. '
+                           'Total de snapshots: '+str(resumo['zonas_com_snapshot']))
+                if resumo['interrompido']:
+                    st.error('Coleta interrompida por bloqueio/URL inválida; '
+                             'não continuar até verificar o TSE.')
+                else:
+                    st.rerun()
+            except Exception as exc:
+                st.error(f'Consulta zonal interrompida: {type(exc).__name__}: {str(exc)[:220]}')
+    else:
+        st.caption('Coleta oficial de zonas desativada antes de 25/10/2026 às 17h.')
     dados_uf=resultado['ufs'][escolhida]
     st.caption(
         'UF: '+str(dados_uf['zonas_consultadas'])+' / '+str(dados_uf['zonas_total'])
@@ -142,6 +162,7 @@ def exibir_modelo_zonal_completo(root,nomes=None):
         'nome_municipio':'Município','zona':'Zona',
         'status':'Situação','secoes':'Seções apuradas',
         'secoes_total':'Seções totais (consultadas)',
+        'validos_apurados':'Votos válidos apurados',
         'lula_apurado':'Lula apurado','flavio_apurado':'Flávio apurado',
         'lula_restante_estimado':'Lula restante estimado',
         'flavio_restante_estimado':'Flávio restante estimado',
