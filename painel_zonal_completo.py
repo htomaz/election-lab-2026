@@ -197,10 +197,23 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
         st.error('Projeções agregadas suspensas nesta versão do snapshot: '
                  'auditoria EA20 apontou divergências entre zonas e UF/BR. '
                  'Consulte o diagnóstico e atualize os dados.')
-    if oficial and not nacional_habilitado:
+    if oficial and not nacional_habilitado and not auditoria_bloqueou:
         st.warning('Cadastro EA16 parcial: os números abaixo representam ' 
                    'somente as localidades cadastradas, não todo o Brasil.')
 
+    if auditoria_bloqueou:
+        st.caption('Exibindo somente votos observados para diagnóstico; '
+                   'todas as previsões estão suspensas neste snapshot.')
+        brutos=pd.DataFrame([
+            {'UF':r['uf'],'Município':r['nome_municipio'],
+             'Zona':r['zona'],'Situação':r['status'],
+             'Lula apurado':r['lula_apurado'],
+             'Flávio apurado':r['flavio_apurado'],
+             'Votos válidos':r['validos_apurados']}
+            for r in resultado['linhas'] if r['validos_apurados']>0])
+        if not brutos.empty:
+            st.dataframe(brutos,hide_index=True,use_container_width=True)
+        return
     if historico_participacao is not None:
         proporcao=br['cobertura_modelo_participacao_pct']
         st.caption(f'Cobertura do estimador comparecimento/brancos/nulos: '
