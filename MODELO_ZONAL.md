@@ -9,7 +9,7 @@ antes de validar o 2º turno federal 6258 no dia 25/10/2026.
    catálogo eleitoral, combina histórico 2026T1/2022T2 e a parcial da zona.
    Votos já observados são imutáveis. Somente os votos remanescentes são
    estimados. Retorna linhas zonais e agregações por município, UF e Brasil.
-2. `coletor_zonal.py`: busca catálogo oficial EA12 da eleição 6258;
+2. `coletor_zonal.py`: busca catálogos oficiais EA16 do pleito 3221 (municípios, zonas e seções);
    monta URLs EA20 válidas apenas para municípios/zonas do catálogo;
    consulta com limite padrão de **12 requisições/segundo**, 8 workers;
    interrompe a rodada em caso de 403, 404 ou 429 e persiste o snapshot
@@ -66,7 +66,7 @@ persistente deverá ser integrado para operação 24/7.
 
 ## Segurança e limites da interpretação
 
-- O cadastro completo de 2026T2 deve vir do **EA12 da eleição 6258**.
+- O cadastro completo de 2026T2 deve vir do **EA16 do pleito 3221**, com um arquivo por UF. EA12 é utilizado para nomear municípios, não para enumerar zonas.
   A listagem do primeiro turno não prova as zonas do segundo.
 - O motor ignora observações com mais de 15 minutos no momento da
   atualização. Uma zona sem observação recente é estimada somente
@@ -87,7 +87,7 @@ persistente deverá ser integrado para operação 24/7.
   consultado. Uma zona não consultada não é interpretada como
   tendo 0 seções no cadastro.
 - Mantenha `main` intacta até concluir a homologação técnica,
-  incluindo URLs reais 6258, erros de coleta, snapshots temporais,
+  incluindo URLs reais 6258/3221, erros de coleta, snapshots temporais,
   reconciliação e teste visual no Streamlit.
 
 ## Próxima etapa necessária
