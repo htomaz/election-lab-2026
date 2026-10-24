@@ -81,6 +81,13 @@ class TestAuditoriaOficialEA20(unittest.TestCase):
         self.assertEqual(r['comparecimento_final_estimado']+
                          r['abstencoes_finais_estimadas'],100)
 
+    def test_um_voto_de_divergencia_nao_pode_passar(self):
+        p=payload_ea20()
+        p['v']['vv']=76
+        with self.assertRaisesRegex(ValueError,'divergência'):
+            normalizar_ea20(p,'SP',abrangencia_esperada='zona',
+                           exigir_metadados=True)
+
     def test_rejeita_primeiro_turno_e_simulado(self):
         for campo,valor in [('t','1'),('ele','6257'),('f','s')]:
             p=payload_ea20()
