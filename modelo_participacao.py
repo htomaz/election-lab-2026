@@ -131,21 +131,21 @@ def estimar_volume_zona(registro,observado=None,peso_2026=.75,
     # UF. É limitado/encolhido antes de chegar aqui; não transfere
     # automaticamente uma zona atípica para o restante do estado.
     a_uf=ajuste_taxas_uf or {}
-    taxa_t=limitar(taxa_t+a_uf.get('turnout',0.),0.,1.)
-    taxa_v=limitar(taxa_v+a_uf.get('valid',0.),0.,1.)
-    taxa_b=limitar(taxa_b+a_uf.get('blank',0.),0.,1.)
-    taxa_n=limitar(taxa_n+a_uf.get('null',0.),0.,1.)
+    taxa_t=limitar(prior['turnout']+a_uf.get('turnout',0.),0.,1.)
+    taxa_v=limitar(prior['valid']+a_uf.get('valid',0.),0.,1.)
+    taxa_b=limitar(prior['blank']+a_uf.get('blank',0.),0.,1.)
+    taxa_n=limitar(prior['null']+a_uf.get('null',0.),0.,1.)
     if processados>0:
         turnout_obs=comparecimento/processados
-        taxa_t=limitar(prior['turnout']+
+        taxa_t=limitar(taxa_t+
                        ganho*limitar(turnout_obs-taxa_t,-.12,.12),0.,1.)
     if comparecimento>0:
         valid_obs=votos_obs/comparecimento
-        taxa_v=limitar(prior['valid']+
+        taxa_v=limitar(taxa_v+
                        ganho*limitar(valid_obs-taxa_v,-.08,.08),0.,1.)
-        taxa_b=limitar(prior['blank']+
+        taxa_b=limitar(taxa_b+
                        ganho*limitar(brancos/comparecimento-taxa_b,-.06,.06),0.,1.)
-        taxa_n=limitar(prior['null']+
+        taxa_n=limitar(taxa_n+
                        ganho*limitar(nulos/comparecimento-taxa_n,-.06,.06),0.,1.)
     # Distribuição mutuamente exclusiva: nenhuma categoria pode exceder
     # os presentes previstos.
