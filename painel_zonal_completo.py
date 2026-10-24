@@ -27,7 +27,7 @@ def _base_historica(caminho, mtime):
 def _executar_snapshot(serializado, caminho, mtime, nomes):
     snap=json.loads(serializado)
     hist=_base_historica(caminho,mtime)
-    oficial = snap.get('catalogo_origem')=='EA12_TSE_6258'
+    oficial = snap.get('catalogo_origem')=='EA16_TSE_3221'
     return executar(snap,hist,nomes=nomes,exigir_catalogo_nacional=oficial)
 
 
@@ -84,7 +84,7 @@ def exibir_modelo_zonal_completo(root,nomes=None):
                    'O catálogo de 2026T1 não prova a cobertura oficial de 2026T2. '
                    'Todos os números de projeção desta tela são experimentais.')
     else:
-        st.info('Snapshot oficial EA12/EA20. Os arquivos zonais podem representar '
+        st.info('Snapshot oficial EA16/EA20. Os arquivos zonais podem representar '
                 'momentos distintos, por isso a projeção é experimental e '
                 'não substitui o resultado oficial BR/UF.')
     try:
