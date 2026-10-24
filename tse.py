@@ -106,8 +106,10 @@ def normalizar_ea20(payload: dict, uf: str, *,
     tem_total_oficial='vv' in campos_votos
     validos_oficiais = as_int(campos_votos.get('vv'))
     validos_candidatos = sum(votos.values())
-    # 2º turno presidencial: não produzir percentual se os votos não batem
-    if tem_total_oficial and abs(validos_candidatos - validos_oficiais) > 1:
+    # Votos são inteiros. Mesmo diferença de UM voto entre soma de
+    # candidatos e votos válidos oficiais pode quebrar a convergência
+    # no último município; não há arredondamento de contagens.
+    if tem_total_oficial and validos_candidatos != validos_oficiais:
         raise ValueError(f'{uf}: divergência de votos válidos {validos_oficiais} vs {validos_candidatos}')
     total = validos_oficiais if tem_total_oficial else validos_candidatos
     if total and (NUM_LULA not in votos or NUM_FLAVIO not in votos):
