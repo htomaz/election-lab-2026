@@ -127,6 +127,9 @@ GitHub o reconheça no ramo padrão; não modificar `main` sem autorização.
 - Sem serviço de coleta 24/7 com armazenamento próprio, sincronização
   multi-instância e retenção durável; caches e arquivos locais podem
   desaparecer. O usuário deve guardar artefatos e backups.
-- A checagem de fonte por URL HTTPS/EA11 e as validações de layout não
-  são verificação criptográfica de assinatura JWS do TSE. JSON
-  enviado manualmente permanece não autenticado.
+- A chave pública Ed25519 oficial do TSE de 2026 foi fixada conforme
+  Apêndice B do manual do TSE (16/09/2026), com verificação do kid.
+  A função JWS autentica apenas cada arquivo de zona EFETIVAMENTE
+  verificado e com votos conciliados. JSON enviado manualmente não
+  é automaticamente autenticado; amostragem HTTP ou SHA-256 isolado
+  não provam assinatura nem cadeia X.509/revogação.
