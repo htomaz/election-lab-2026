@@ -80,8 +80,8 @@ class TestMotorCompleto(unittest.TestCase):
         self.assertEqual(next(x for x in r['linhas'] if x['zona']=='0001')['status'],
                          'desatualizada')
 
-    def test_nega_nacional_sem_ea12_6258_completo(self):
-        with self.assertRaisesRegex(ValueError,'Catálogo eleitoral nacional'):
+    def test_nega_nacional_sem_ea16_3221_completo(self):
+        with self.assertRaisesRegex(ValueError,'Catálogo EA16 nacional'):
             executar(self.snapshot,self.historico,agora=self.now)
 
     def test_rejeita_parcial_acima_dos_validos(self):
