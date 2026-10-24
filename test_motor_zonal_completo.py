@@ -106,6 +106,28 @@ class TestMotorCompleto(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'não corresponde'):
             self.teste()
 
+    def test_reconstrucao_nacional_2026t1_se_todas_zonas_contadas(self):
+        # Teste algébrico com o resultado final já conhecido de 2026T1:
+        # os demais candidatos entram em validos, mas não são Flávio.
+        from modelo_zonas import carregar_zonas
+        historico=carregar_zonas('historico_zonas.csv')
+        chaves=[k for k,v in historico.items() if (2026,1) in v]
+        snap={'versao':1,'eleicao':6258,'catalogo_origem':'TESTE_HISTORICO',
+              'catalogo':[{'uf':k[0],'municipio':k[1],'zona':k[2]} for k in chaves],
+              'observacoes':{}}
+        for k in chaves:
+            v=historico[k][(2026,1)]
+            snap['observacoes'][id_zona(k)]={'lula':v['lula'],
+                'flavio':v['direita'],'validos':v['validos'],
+                'secoes':1,'secoes_total':1,'capturado_em':self.now}
+        r=executar(snap,historico,agora=self.now,
+                  exigir_catalogo_nacional=False)
+        self.assertEqual(r['brasil']['zonas_concluidas'],len(chaves))
+        self.assertAlmostEqual(r['brasil']['lula_estimado'],53879538,places=3)
+        self.assertAlmostEqual(r['brasil']['flavio_estimado'],56104503,places=3)
+        self.assertAlmostEqual(r['brasil']['lula_apurado'],53879538,places=3)
+        self.assertAlmostEqual(r['brasil']['flavio_apurado'],56104503,places=3)
+
     def test_chave_identidade_tse(self):
         self.assertEqual(chave_zona('sp','71072','1'),self.z1)
 
