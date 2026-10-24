@@ -16,7 +16,7 @@ from painel_zonal_completo import exibir_modelo_zonal_completo
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
-from registro import salvar, serie
+from registro import salvar, serie, exportar_csv, restaurar_csv
 from tse import coletar, UFS, resultado_disponivel
 
 st.set_page_config(page_title='Election Lab 2026', page_icon='📊', layout='wide', initial_sidebar_state='collapsed')
@@ -172,6 +172,29 @@ def painel():
         df_serie=pd.DataFrame(itens)
     else:
         salvar(nacional, rel if mostrar else None)
+        with st.expander('Backup e recuperação da série nacional'):
+            backup=exportar_csv()
+            if backup:
+                st.download_button('Baixar histórico de apuração/projeções (CSV)',
+                                   data=backup.encode('utf-8-sig'),
+                                   file_name='election_lab_serie_2026.csv',
+                                   mime='text/csv',key='backup_nacional')
+            else:
+                st.caption('Ainda não há gerações nacionais registradas.')
+            enviado=st.file_uploader('Importar backup CSV anterior',
+                                     type=['csv'],key='restaurar_serie')
+            if enviado is not None and st.button(
+                    'Restaurar série a partir deste arquivo',
+                    key='confirmar_restaurar_serie'):
+                try:
+                    res=restaurar_csv(enviado.getvalue())
+                    st.success(f"Histórico reconciliado: {res['linhas_recebidas']} linhas "
+                               "recebidas, sem regredir gerações existentes.")
+                    st.rerun()
+                except (ValueError,OSError,UnicodeError) as exc:
+                    st.error(f'Backup rejeitado: {exc}')
+            st.caption('Backups manuais são importantes: os arquivos internos '
+                       'do Streamlit gratuito podem desaparecer após reinício.')
         log=serie()
         log=log[log['validos']>0].copy() if not log.empty else log
         if not log.empty:
