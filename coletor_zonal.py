@@ -115,7 +115,8 @@ def coletar(caminho, uf=None, todas=False, limite=300, taxa=12.,
         raise ValueError('Limite/taxa/concorrência fora da faixa segura')
     if renovar_apos < 0:
         raise ValueError('Idade de renovação inválida')
-    if not permitir_antes and not resultado_disponivel():
+    momento = datetime.fromtimestamp(agora if agora is not None else time.time(),timezone.utc)
+    if not permitir_antes and not resultado_disponivel(momento):
         raise ValueError('A apuração oficial de 25/10 ainda não começou')
     clock=clock or time.time
     sleep=sleep or time.sleep
