@@ -148,16 +148,6 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
     elif br['cobertura_zonas_pct'] < 80:
         st.warning('Cobertura zonal incompleta. O valor estimado para as demais '
                    'localidades ainda depende predominantemente do histórico.')
-    nacional_habilitado=bool((not oficial or br['catalogo_oficial_nacional'])
-                            and not auditoria_bloqueou)
-    if auditoria_bloqueou:
-        st.error('Projeções agregadas suspensas nesta versão do snapshot: '
-                 'auditoria EA20 apontou divergências entre zonas e UF/BR. '
-                 'Consulte o diagnóstico e atualize os dados.')
-    if oficial and not nacional_habilitado:
-        st.warning('Cadastro EA16 parcial: os números abaixo representam ' 
-                   'somente as localidades cadastradas, não todo o Brasil.')
-
     hash_snapshot=hashlib.sha256(json.dumps(
         snap,sort_keys=True,ensure_ascii=False).encode('utf-8')).hexdigest()
     auditoria_anterior=st.session_state.get('auditoria_zonal_ultima')
@@ -201,6 +191,16 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                                        str(erros)[:250])
                 except (ValueError,TypeError,KeyError) as exc:
                     st.error('Falha na conciliação: '+str(exc))
+    nacional_habilitado=bool((not oficial or br['catalogo_oficial_nacional'])
+                            and not auditoria_bloqueou)
+    if auditoria_bloqueou:
+        st.error('Projeções agregadas suspensas nesta versão do snapshot: '
+                 'auditoria EA20 apontou divergências entre zonas e UF/BR. '
+                 'Consulte o diagnóstico e atualize os dados.')
+    if oficial and not nacional_habilitado:
+        st.warning('Cadastro EA16 parcial: os números abaixo representam ' 
+                   'somente as localidades cadastradas, não todo o Brasil.')
+
     if historico_participacao is not None:
         proporcao=br['cobertura_modelo_participacao_pct']
         st.caption(f'Cobertura do estimador comparecimento/brancos/nulos: '
