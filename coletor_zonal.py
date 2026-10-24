@@ -21,7 +21,10 @@ from pathlib import Path
 import tempfile
 import time
 from contextlib import contextmanager
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl=None
 
 import requests
 
@@ -140,14 +143,32 @@ def _arquivo_bloqueado(caminho):
     alvo=Path(caminho)
     alvo.parent.mkdir(parents=True,exist_ok=True)
     with (alvo.parent/(alvo.name+'.lock')).open('a+b') as arq:
-        try:
-            fcntl.flock(arq.fileno(),fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise RuntimeError('Já existe uma coleta usando este arquivo') from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(arq.fileno(),fcntl.LOCK_UN)
+        if fcntl is not None:
+            try:
+                fcntl.flock(arq.fileno(),fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise RuntimeError('Já existe uma coleta usando este arquivo') from exc
+            try:
+                yield
+            finally:
+                fcntl.flock(arq.fileno(),fcntl.LOCK_UN)
+        else:
+            # Windows: bloquear um byte de arquivo com msvcrt.
+            import msvcrt
+            arq.seek(0,os.SEEK_END)
+            if arq.tell()==0:
+                arq.write(b'\\0')
+                arq.flush()
+            arq.seek(0)
+            try:
+                msvcrt.locking(arq.fileno(),msvcrt.LK_NBLCK,1)
+            except OSError as exc:
+                raise RuntimeError('Já existe uma coleta usando este arquivo') from exc
+            try:
+                yield
+            finally:
+                arq.seek(0)
+                msvcrt.locking(arq.fileno(),msvcrt.LK_UNLCK,1)
 
 
 def coletar(caminho, uf=None, todas=False, limite=300, taxa=12.,
