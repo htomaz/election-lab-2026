@@ -13,6 +13,14 @@ on:
         default: "10000"
         type: string
 
+# A exclusão por arquivo protege a execução local, mas cada runner
+# do GitHub Actions tem um disco separado. Serializar execuções evita
+# que duas rodadas restaurarem simultaneamente a mesma versão antiga
+# e produzam dois caches incompatíveis do mesmo pleito.
+concurrency:
+  group: election-lab-zonal-6258-unico
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
