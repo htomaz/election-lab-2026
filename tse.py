@@ -3,6 +3,9 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import hashlib
+import json
+from urllib.parse import urlsplit
 import requests
 
 ELEICAO = 6258  # Eleição federal / 2º turno de 2026 (TSE)
@@ -231,9 +234,19 @@ def baixar_zona(uf: str, municipio: str, zona: str):
     try:
         r = requests.get(url, timeout=(4, 9), headers={'User-Agent':'ElectionLab2026/0.4 (TSE dados publicos)'})
         r.raise_for_status()
+        # A CDN pode redirecionar; nunca aceitar arquivo de outra origem.
+        url_recebida=getattr(r,'url',None)
+        if isinstance(url_recebida,str) and (
+            urlsplit(url_recebida).scheme!='https' or
+            urlsplit(url_recebida).hostname!='resultados.tse.jus.br'
+        ):
+            raise ValueError('Redirecionamento de EA20 para origem não oficial')
         dados=r.json()
         resultado = normalizar_ea20(dados, uf.upper(),
                          abrangencia_esperada='zona', exigir_metadados=True)
+        resultado['sha256_ea20']=hashlib.sha256(json.dumps(
+            dados,sort_keys=True,ensure_ascii=False,
+            separators=(',',':'),allow_nan=False).encode('utf-8')).hexdigest()
         if str(dados.get('cdabr','')).zfill(4)!=str(zona).zfill(4):
             raise ValueError('EA20 retornou zona diferente da solicitada')
         resultado.update({'municipio':str(municipio).zfill(5),'zona':str(zona).zfill(4), 'url':url})
