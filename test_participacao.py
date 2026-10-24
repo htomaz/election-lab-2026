@@ -53,6 +53,19 @@ class TestParticipacao(unittest.TestCase):
              previsto['nulos_finais_estimados']+
              previsto['outros_invalidos_finais_estimados']),places=5)
 
+    def test_transicao_historica_entre_turnos_informa_comparecimento(self):
+        self.part[self.z][(2022,1)]={
+            'aptos':1000,'comparecimento':450,'abstencoes':550,
+            'validos':400,'brancos':20,'nulos':30}
+        prev=estimar_volume_zona(self.part[self.z],peso_2026=.75)
+        # Antes, 0.75*0.60 + 0.25*0.50 = 57.5%.
+        # Transição 2022 T1→T2: de 45% a 50% de comparecimento,
+        # transferindo apenas metade desse delta para a componente 2026.
+        self.assertAlmostEqual(prev['taxa_comparecimento_historica'],.59375)
+        self.assertIn('transição',prev['prior_origem'])
+        self.assertAlmostEqual(prev['comparecimento_final_estimado']+
+                               prev['abstencoes_finais_estimadas'],1000)
+
     def test_brancos_nulos_afetam_validos_com_comparecimento_fixo(self):
         normal={'aptos':1000,'aptos_processados':0,'comparecimento':0,
                 'abstencoes':0,'brancos':0,'nulos':0,
