@@ -50,7 +50,12 @@ class TestPainelZonalSmoke(unittest.TestCase):
             )
             app=AppTest.from_string(code,default_timeout=90).run()
             self.assertFalse(app.exception,[str(x.message) for x in app.exception])
-            self.assertTrue(any('JWS' in str(x.label) for x in app.expander))
+            self.assertTrue(
+                any('JWS' in str(x.label) for x in app.expander),
+                {'expanders':[str(x.label) for x in app.expander],
+                 'erros':[str(x.proto) for x in app.error],
+                 'avisos':[str(x.proto) for x in app.warning],
+                 'infos':[str(x.proto) for x in app.info]})
             self.assertTrue(any('zona' in str(x.label).lower()
                                 for x in app.selectbox))
 
