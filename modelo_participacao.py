@@ -39,9 +39,29 @@ def referencia_historica(registro,peso_2026=.75):
     if a is None and b is None:
         return None
     if a is not None and b is not None:
-        return {k:peso_2026*a[k]+(1-peso_2026)*b[k]
-                for k in ('turnout','valid','blank','null')} | {
-                'aptos':a['aptos'],'origem':'2026T1 + 2022T2'}
+        primeiro_22=_taxas(registro.get((2022,1)))
+        taxas={}
+        for k in ('turnout','valid','blank','null'):
+            taxa26=a[k]
+            if primeiro_22 is not None:
+                # Mudança entre turnos de 2022 ajuda a estimar uma
+                # diferença de comparecimento do 1º para o 2º turno.
+                # Não transportar integralmente o desvio histórico.
+                max_delta = .12 if k=='turnout' else (.08 if k=='valid' else .04)
+                transicao=limitar(b[k]-primeiro_22[k],-max_delta,max_delta)
+                taxa26=limitar(taxa26+.5*transicao,0.,1.)
+            taxas[k]=limitar(peso_2026*taxa26+(1-peso_2026)*b[k],0.,1.)
+        soma=taxas['valid']+taxas['blank']+taxas['null']
+        if soma>1:
+            taxa_invalidos=taxas['blank']+taxas['null']
+            if taxa_invalidos:
+                fator=max(0.,1-taxas['valid'])/taxa_invalidos
+                taxas['blank']*=fator
+                taxas['null']*=fator
+        return taxas | {
+            'aptos':a['aptos'],
+            'origem':('2026T1 + 2022T2 + transição 2022T1→T2'
+                      if primeiro_22 is not None else '2026T1 + 2022T2')}
     escolhido=a or b
     return {k:escolhido[k] for k in ('turnout','valid','blank','null','aptos')} | {
         'origem':'2026T1' if a else '2022T2'}
