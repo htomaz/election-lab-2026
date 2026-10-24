@@ -12,7 +12,7 @@ class TestPainelZonalSmoke(unittest.TestCase):
         )
         app=AppTest.from_string(code,default_timeout=90).run()
         self.assertFalse(app.exception, [str(e.message) for e in app.exception])
-        mensagens=[x.message for x in app.warning]
+        mensagens=[str(x.proto) for x in app.warning]
         # A aba não pode inventar resultado oficial sem EA20.
         self.assertTrue(any('PRÉVIA COM HISTÓRICO' in str(m) for m in mensagens))
         self.assertGreaterEqual(len(app.metric),6)
