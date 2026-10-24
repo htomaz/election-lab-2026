@@ -43,6 +43,26 @@ jobs:
           if not limite.isdigit() or not 1<=int(limite)<=10000:
               raise SystemExit('Limite inválido')
           PY
+      - name: Recuperar último snapshot zonal para coleta incremental
+        uses: actions/cache/restore@v4
+        with:
+          path: dados_zonais_6258.json
+          key: election-lab-6258-zonas-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            election-lab-6258-zonas-
+      - name: Registrar situação do snapshot recuperado
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from coletor_zonal import carregar_arquivo
+          p=Path('dados_zonais_6258.json')
+          if p.exists():
+              d=carregar_arquivo(p)
+              print('Zonas recuperadas:',len(d['observacoes']))
+              print('Última gravação:',d.get('atualizado_em'))
+          else:
+              print('Sem cache anterior; iniciando coleta completa do escopo.')
+          PY
       - name: Coletar EA16 e EA20 oficiais de todas as zonas selecionadas
         env:
           ESCOPO: ${{ inputs.escopo }}
@@ -54,6 +74,12 @@ jobs:
           else
             python coletor_zonal.py --uf "$ESCOPO" --limite "$LIMITE" --taxa 12 --concorrencia 8 --saida dados_zonais_6258.json
           fi
+      - name: Preservar snapshot para próxima execução
+        if: always() && hashFiles('dados_zonais_6258.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: dados_zonais_6258.json
+          key: election-lab-6258-zonas-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Publicar snapshot para carregar no Streamlit
         if: always()
         uses: actions/upload-artifact@v4
