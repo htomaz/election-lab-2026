@@ -120,16 +120,22 @@ def baixar_mais_recente(sess,token,repo=REPO,branch=BRANCH,
     ),key=lambda x:x.get('id',0),reverse=True)
     if not possiveis:
         return None
-    art=possiveis[0]
-    ident=int(art['id'])
-    url=f'https://api.github.com/repos/{repo}/actions/artifacts/{ident}/zip'
-    r=sess.get(url,headers={'Authorization':f'Bearer {token}',
-                            'Accept':'application/vnd.github+json'},
-               timeout=(6,40))
-    r.raise_for_status()
-    resultado=extrair_artifact(r.content)
-    return {'artifact_id':ident,'run_id':art['workflow_run']['id'],
-            'snapshot':resultado}
+    # Artifacts antigos anteriores à implantação do manifesto não são
+    # restauráveis; procurar a cópia válida mais recente, sem descartá-la.
+    for art in possiveis[:20]:
+        ident=int(art['id'])
+        url=f'https://api.github.com/repos/{repo}/actions/artifacts/{ident}/zip'
+        r=sess.get(url,headers={'Authorization':f'Bearer {token}',
+                                'Accept':'application/vnd.github+json'},
+                   timeout=(6,40))
+        r.raise_for_status()
+        try:
+            resultado=extrair_artifact(r.content)
+        except (ValueError,zipfile.BadZipFile,UnicodeError,KeyError):
+            continue
+        return {'artifact_id':ident,'run_id':art['workflow_run']['id'],
+                'snapshot':resultado}
+    return None
 
 
 def recuperar(destino,token=None,sess=None,ignorar_run=None):
