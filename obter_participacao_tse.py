@@ -18,8 +18,8 @@ LIMITE=500*1024*1024
 
 
 def baixar(ano,turno,saida='historico_participacao_zonas.csv'):
-    if (ano,turno) not in ((2022,2),(2026,1)):
-        raise ValueError('Apenas períodos históricos 2022T2 e 2026T1')
+    if (ano,turno) not in ((2022,1),(2022,2),(2026,1)):
+        raise ValueError('Apenas períodos históricos 2022T1, 2022T2 e 2026T1')
     with TemporaryDirectory(prefix='tse_participacao_') as tmp:
         z=Path(tmp)/f'detalhe_votacao_munzona_{ano}.zip'
         with requests.get(URL.format(ano=ano),stream=True,timeout=(15,90),
@@ -46,7 +46,8 @@ def baixar(ano,turno,saida='historico_participacao_zonas.csv'):
 if __name__=='__main__':
     p=argparse.ArgumentParser()
     p.add_argument('--ano',type=int,choices=[2022,2026],required=True)
+    p.add_argument('--turno',type=int,choices=[1,2],default=None)
     p.add_argument('--saida',default='historico_participacao_zonas.csv')
     a=p.parse_args()
-    print(json.dumps(baixar(a.ano,2 if a.ano==2022 else 1,a.saida),
+    print(json.dumps(baixar(a.ano,a.turno if a.turno is not None else (2 if a.ano==2022 else 1),a.saida),
                      ensure_ascii=False,indent=2))
