@@ -99,6 +99,13 @@ def executar(snapshot, historico, nomes=None, agora=None,
             rejeitadas.append(ident)
             continue
         try:
+            # A saída de uma coleta real preserva a identificação
+            # EA20; não aceitar observação que confessa origem simulada
+            # ou primeiro turno, mesmo quando recebida por upload.
+            if item.get('fase') is not None and item['fase']!='o':
+                raise ValueError('Observação EA20 simulada')
+            if item.get('turno') is not None and str(item['turno'])!='2':
+                raise ValueError('Observação EA20 de outro turno')
             chave = chave_zona(*ident.split('|'))
             if chave not in catalogo:
                 rejeitadas.append(ident)
