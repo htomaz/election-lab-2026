@@ -122,7 +122,7 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                 'não substitui o resultado oficial BR/UF.')
     try:
         resultado=executar(snap,base,nomes=nomes or {},
-                          exigir_catalogo_nacional=oficial,
+                          exigir_catalogo_nacional=False,
                           participacao=historico_participacao,
                           peso_2026=peso_2026,ajuste_volume=ajuste_volume,
                           intensidade=intensidade)
