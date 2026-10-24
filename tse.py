@@ -13,10 +13,29 @@ NUM_FLAVIO = '22'
 
 
 def as_int(value, default=0):
-    try:
-        return int(str(value).replace('.', '').replace(' ', '').split(',')[0])
-    except (ValueError, TypeError):
+    """Não truncar vírgulas nem converter campos corrompidos em zero.
+
+    Campos quantitativos EA20 são INTEIROS. Apenas ausência explícita
+    aceita o default, nunca strings malformadas ('1,5', 'abc', etc.).
+    """
+    if value is None:
         return default
+    if isinstance(value,bool):
+        raise ValueError('Campo EA20 quantitativo recebeu booleano')
+    if isinstance(value,int):
+        return value
+    valor=str(value).strip().replace(' ','')
+    # Pontos de milhar são tolerados para compatibilidade com arquivos
+    # legados; a divulgação EA20 produz inteiros sem formatação.
+    if '.' in valor:
+        partes=valor.split('.')
+        if (not partes[0].lstrip('-').isdigit() or
+            any(len(x)!=3 or not x.isdigit() for x in partes[1:])):
+            raise ValueError(f'Inteiro EA20 malformado: {value!r}')
+        valor=''.join(partes)
+    if not valor or not valor.lstrip('-').isdigit():
+        raise ValueError(f'Inteiro EA20 malformado: {value!r}')
+    return int(valor)
 
 
 def url_resultado(uf: str, eleicao: int = ELEICAO) -> str:
@@ -69,14 +88,21 @@ def normalizar_ea20(payload: dict, uf: str, *,
                     numero = str(candidato.get('n', '')).strip()
                     if not numero:
                         continue
+                    if exigir_metadados and candidato.get('vap') is None:
+                        raise ValueError(f'{uf}: candidato {numero} sem votos vap')
                     quantia = as_int(candidato.get('vap'))
                     if quantia < 0:
                         raise ValueError(f'{uf}: votos negativos')
                     votos[numero] = votos.get(numero, 0) + quantia
                     nomes[numero] = candidato.get('nmu') or candidato.get('nm') or numero
     secoes = payload.get('s') or {}
-    # EA20: vv = votos válidos; tvn = total de votos NULOS (não confundir).
+    # EA20: vv = votos válidos; tvn = total de votos NULOS.
     campos_votos=payload.get('v') or {}
+    if exigir_metadados and (
+        not all(k in secoes for k in ('st','ts')) or
+        not all(k in campos_votos for k in ('vv','vb','tvn','tv'))
+    ):
+        raise ValueError(f'{uf}: blocos EA20 s/v sem contagens obrigatórias')
     tem_total_oficial='vv' in campos_votos
     validos_oficiais = as_int(campos_votos.get('vv'))
     validos_candidatos = sum(votos.values())
@@ -146,6 +172,11 @@ def normalizar_ea20(payload: dict, uf: str, *,
         raise ValueError(f'{uf}: votos totais superam comparecimento')
     data = str(payload.get('dg',''))
     hora = str(payload.get('hg',''))
+    if exigir_metadados:
+        try:
+            datetime.strptime(data+' '+hora,'%d/%m/%Y %H:%M:%S')
+        except ValueError as exc:
+            raise ValueError(f'{uf}: horário de geração EA20 inválido') from exc
     return {'uf':uf,'lula':votos.get(NUM_LULA, 0),'flavio':votos.get(NUM_FLAVIO, 0),
             'validos':total,'secoes':st,'secoes_total':ts,
             'geracao':f'{data} {hora}'.strip(),'nomes':nomes,'url':url_resultado(uf),
@@ -198,9 +229,10 @@ def baixar_zona(uf: str, municipio: str, zona: str):
     try:
         r = requests.get(url, timeout=(4, 9), headers={'User-Agent':'ElectionLab2026/0.4 (TSE dados publicos)'})
         r.raise_for_status()
-        resultado = normalizar_ea20(r.json(), uf.upper(),
+        dados=r.json()
+        resultado = normalizar_ea20(dados, uf.upper(),
                          abrangencia_esperada='zona', exigir_metadados=True)
-        if str(r.json().get('cdabr','')).zfill(4)!=str(zona).zfill(4):
+        if str(dados.get('cdabr','')).zfill(4)!=str(zona).zfill(4):
             raise ValueError('EA20 retornou zona diferente da solicitada')
         resultado.update({'municipio':str(municipio).zfill(5),'zona':str(zona).zfill(4), 'url':url})
         return resultado, None
