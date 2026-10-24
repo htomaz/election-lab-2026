@@ -61,16 +61,23 @@ def calibrar_taxas_uf_observadas(observadas, participacao, peso_2026=.75,
             continue
         ap=int(x['aptos_processados'])
         comp=int(x['comparecimento'])
+        instalados=x.get('aptos_instalados')
+        nao_instalados=x.get('aptos_nao_instalados')
+        # Apenas seções instaladas participam da conta c+a. e.est
+        # inclui as não instaladas; usá-lo reduziria artificialmente
+        # a participação observada e enviesaria todas as outras zonas da UF.
+        base=(int(instalados) if instalados is not None else
+              (ap if not nao_instalados else 0))
         s=int(x.get('secoes',0));ts=int(x.get('secoes_total',0))
-        if ap<=0 or comp<=0 or ts<=0 or s<=0 or s>ts:
+        if base<=0 or ap<base or comp<=0 or ts<=0 or s<=0 or s>ts:
             continue
-        if comp>ap or int(x['validos'])+int(x['brancos'])+int(x['nulos'])>comp:
+        if comp>base or int(x['validos'])+int(x['brancos'])+int(x['nulos'])>comp:
             continue
         maturidade=sqrt(s/ts)
-        atuais={'turnout':comp/ap,'valid':int(x['validos'])/comp,
+        atuais={'turnout':comp/base,'valid':int(x['validos'])/comp,
                 'blank':int(x['brancos'])/comp,'null':int(x['nulos'])/comp}
         for k in limites:
-            peso=(ap if k=='turnout' else comp)*maturidade
+            peso=(base if k=='turnout' else comp)*maturidade
             dif=max(-limites[k],min(limites[k],atuais[k]-prior[k]))
             grupos[chave[0]][k][0]+=peso*dif
             grupos[chave[0]][k][1]+=peso
