@@ -40,6 +40,22 @@ class TestReleaseCandidate(unittest.TestCase):
                                  'fix/validacao-conciliacao-25out26')
                 self.assertTrue(release_candidate.verificar(manifesto))
 
+    def test_manifesto_branch_curvas_e_novos_arquivos_auditados(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            arquivo=Path(pasta)/'curva_continuidade.py'
+            arquivo.write_text('versao-testada',encoding='utf-8')
+            with patch.object(release_candidate,'ARQUIVOS',(str(arquivo),)), \
+                 patch.object(release_candidate,'commit',return_value='sha-branch'), \
+                 patch.dict(os.environ,{
+                     'GITHUB_REF':'refs/pull/3/merge',
+                     'GITHUB_HEAD_REF':'feature/curvas-medias-fixas-por-votos',
+                     'GITHUB_EVENT_NAME':'pull_request',
+                     'ELECTION_LAB_EXPECTED_SHA':'sha-branch'}):
+                manifesto=release_candidate.montar()
+                self.assertEqual(manifesto['branch'],'feature/curvas-medias-fixas-por-votos')
+                self.assertTrue(release_candidate.verificar(manifesto))
+                self.assertFalse(manifesto['publicado'])
+
     def test_branch_aleatoria_nao_pode_emitir_manifesto(self):
         with patch.dict(os.environ,{'GITHUB_REF':'refs/pull/2/merge',
                                    'GITHUB_HEAD_REF':'branch-nao-aprovada'}):

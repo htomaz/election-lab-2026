@@ -47,7 +47,49 @@ def base_uf(uf, refs, peso_2026=0.75):
     return {'prior':ratio,'volume':validos,'tem_2026':a is not None,'tem_2022':b is not None}
 
 
-def projetar_locais(localidades, historico, peso_2026=.75, ajuste_volume=1., intensidade=.35):
+
+def _perfil_restante_comparavel(historicos_uf, perfil_uf, peso_2026):
+    """Perfis históricos do conjunto APURADO e do conjunto REMANESCENTE.
+
+    Somente perfis territoriais reconciliados devem ser utilizados. Cada
+    período usa a participação nos votos dos DOIS candidatos, inclusive
+    no histórico de 2026T1 (sem terceiros no denominador da preferência).
+    Se faltar período/consistência, retorna None e mantém estimador legado.
+    """
+    if not isinstance(perfil_uf, dict):
+        return None
+    valores = []
+    pesos = []
+    for periodo, peso in [((2026, 1), peso_2026), ((2022, 2), 1-peso_2026)]:
+        origem = historicos_uf.get(periodo)
+        if not origem or origem['lula'] + origem['direita'] <= 0:
+            continue
+        # É obrigatório apresentar o MESMO universo territorial nos dois
+        # períodos usados; não utilizar parcialmente uma base ausente.
+        rec = perfil_uf.get(periodo)
+        if not isinstance(rec, dict):
+            return None
+        try:
+            lo, do = (int(rec[c]) for c in ('lula_apurado_hist', 'direita_apurado_hist'))
+            lt, dt = (int(rec[c]) for c in ('lula_total_hist', 'direita_total_hist'))
+        except (TypeError, KeyError, ValueError, OverflowError):
+            return None
+        if (min(lo, do, lt, dt) < 0 or lo > lt or do > dt or
+            lt != origem['lula'] or dt != origem['direita']):
+            return None
+        obs, resto = lo+do, lt+dt-lo-do
+        if obs <= 0 or resto <= 0:
+            return None
+        valores.append((lo/obs, (lt-lo)/resto))
+        pesos.append(peso)
+    if not valores or sum(pesos) <= 0:
+        return None
+    return (sum(w*v[0] for v,w in zip(valores,pesos))/sum(pesos),
+            sum(w*v[1] for v,w in zip(valores,pesos))/sum(pesos))
+
+
+def projetar_locais(localidades, historico, peso_2026=.75, ajuste_volume=1.,
+                    intensidade=.35, composicao_historica=None):
     """Sem dados completos de todas as localidades, retorna projeção parcial com coverage.
 
     Para cada UF: votos já contados + votos remanescentes ponderados pelo prior da UF.
@@ -56,6 +98,7 @@ def projetar_locais(localidades, historico, peso_2026=.75, ajuste_volume=1., int
     """
     linhas=[]
     faltantes=[]
+    composicao_historica = composicao_historica or {}
     for uf in UFS:
         ref = base_uf(uf,historico,peso_2026)
         if ref is None:
@@ -86,9 +129,24 @@ def projetar_locais(localidades, historico, peso_2026=.75, ajuste_volume=1., int
         rem=max(0.,pred_total-obs_v)
         frac_atual=(obs_l/(obs_l+obs_f)) if (obs_l+obs_f) else None
         # Parcial local não é amostra aleatória; limitar variação transmitida.
-        delta=0.0 if frac_atual is None else max(-.08,min(.08,frac_atual-ref['prior']))
+        # Com dados geográficos reconciliados, separar a composição
+        # histórica das localidades JÁ apuradas daquela AINDA não apuradas.
+        # Não impor uma reversão artificial do viés: o swing é estimado
+        # comparando o observado com o seu próprio histórico territorial.
+        perfil = composicao_historica.get(uf)
+        conciliado = (isinstance(perfil,dict) and
+                      perfil.get('lula_atual') == obs_l and
+                      perfil.get('flavio_atual') == obs_f)
+        referencia_territorial = (_perfil_restante_comparavel(
+            historico.get(uf, {}), perfil.get('periodos'), peso_2026)
+            if conciliado else None)
+        prioridade_obs = (referencia_territorial[0]
+                         if referencia_territorial else ref['prior'])
+        prioridade_rem = (referencia_territorial[1]
+                         if referencia_territorial else ref['prior'])
+        delta=0.0 if frac_atual is None else max(-.08,min(.08,frac_atual-prioridade_obs))
         ganho=min(1.,p/.25)*intensidade
-        share_rem=max(.02,min(.98,ref['prior']+ganho*delta))
+        share_rem=max(.02,min(.98,prioridade_rem+ganho*delta))
         proj_l=obs_l+rem*share_rem
         proj_f=obs_f+rem*(1-share_rem)
         linhas.append({'UF':uf,'Apuração (%)':p*100,'Votos válidos apurados':obs_v,
@@ -97,6 +155,8 @@ def projetar_locais(localidades, historico, peso_2026=.75, ajuste_volume=1., int
                        'Votos válidos projetados':proj_l+proj_f,
                        'Lula projeção (%)':100*proj_l/(proj_l+proj_f) if proj_l+proj_f else None,
                        'Lula histórico (%)':100*ref['prior'],
+                       'Perfil geográfico validado':referencia_territorial is not None,
+                       'Histórico restante Lula (%)':100*prioridade_rem,
                        'Base 2026':ref['tem_2026'],'Base 2022':ref['tem_2022']})
     total_l=sum(x['Lula projetado'] for x in linhas)
     total_f=sum(x['Flávio projetado'] for x in linhas)
