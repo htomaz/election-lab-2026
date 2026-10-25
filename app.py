@@ -67,6 +67,12 @@ with st.sidebar:
     vol = st.slider('Volume esperado de votos válidos', .90, 1.10, 1., .01)
     intensidade = st.slider('Ajuste das parciais estaduais', 0., .8, .35, .05)
     st.caption('Estimativa experimental por UF, ainda sem calibração retrospectiva por zona.')
+    testar_correcao_geografica = st.checkbox(
+        'Testar correção geográfica de composição (experimental)',
+        value=False,
+        help='Só utiliza zonas totalmente concluídas que reconciliam exatamente '
+             'com a parcial oficial da respectiva UF. Sem dados consistentes, '
+             'o modelo anterior permanece. Não houve calibração para 2T2026.')
     st.markdown('[Fonte oficial do TSE](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados)')
 
 
@@ -298,8 +304,9 @@ def painel():
             st.warning('Histórico não encontrado. A apuração oficial pode ser exibida, mas a projeção permanecerá desativada. Use a aba **Históricos**.')
     nacional = brutos['BR']
     conciliacao_nacional = None if demo else reconciliar_brasil(brutos, UFS)
-    perfis_geograficos = ({} if demo else
-                            composicao_zonal_uf_somente_quando_conciliada(brutos))
+    perfis_geograficos = (
+        composicao_zonal_uf_somente_quando_conciliada(brutos)
+        if (not demo and testar_correcao_geografica) else {})
     rel = projetar_locais(brutos, historico, peso, vol, intensidade,
                          composicao_historica=perfis_geograficos)
     cobertura = rel['completo'] and len(brutos)==29 and all(brutos.get(uf,{}).get('secoes_total',0)>0 for uf in UFS)
@@ -341,8 +348,8 @@ def painel():
                    'ainda não apuradas só é corrigida quando snapshots zonais '
                    'oficiais concluídos coincidem exatamente com totais UF; '
                    'não implica calibração estatística validada.')
-        if not demo:
-            st.caption('Correção geográfica confirmada: '
+        if not demo and testar_correcao_geografica:
+            st.caption('Correção geográfica experimental confirmada: 
                        + (', '.join(sorted(ufs_correcao_geografica))
                           if ufs_correcao_geografica else 'nenhuma UF — '
                           'modelo anterior preservado'))
