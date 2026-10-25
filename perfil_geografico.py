@@ -95,7 +95,7 @@ def compor_perfis_conciliados(brutos_uf, snapshot, historico_zonas):
                 somas['direita_apurado_hist']+=base['direita']
             periodos[periodo]=somas
         # O helper no modelo valida totais, cobertura e períodos.
-        if periodos and len(periodos) == 2:
+        if periodos:
             resultado[uf]={'lula_atual':g['lula'],
                            'flavio_atual':g['flavio'],
                            'periodos':periodos}
