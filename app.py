@@ -137,8 +137,8 @@ def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
 
     # Referências pré-calculadas: nunca são recalibradas pelo placar ao vivo.
     for titulo, coluna, cor in [
-        ('Lula · média histórica fixa', 'media_lula_pct', '#f4a0a6'),
-        ('Flávio · média histórica fixa', 'media_flavio_pct', '#89c6f2'),
+        ('Lula · cenário das pesquisas (3 dias)', 'media_lula_pct', '#f4a0a6'),
+        ('Flávio · cenário das pesquisas (3 dias)', 'media_flavio_pct', '#89c6f2'),
     ]:
         fig.add_trace(go.Scatter(
             x=referencias['votos_apurados_pct'], y=referencias[coluna],
@@ -222,10 +222,10 @@ def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
                'continuação a partir da última parcial até o resultado projetado '
                'pelo modelo atual. A tendência inicial usa a evolução recente '
                'das parciais no tempo; o trajeto intermediário é uma simulação.')
-    st.caption('Linhas finas pontilhadas = referências históricas FIXAS: '
-               'média 50/50 dos ritmos de 2022 (2º turno) e 2026 (1º turno), '
-               'condicionada ao cenário Lula 49,02% × Flávio 50,98%. '
-               'Esse cenário não é o destino da projeção ao vivo.')
+    st.caption('Linhas finas pontilhadas = cenário FIXO das pesquisas dos últimos '
+               '3 dias (Lula 49,02% e Flávio 50,98%), distribuído pela média '
+               'dos ritmos históricos de apuração de 2022 (2º turno) e '
+               '2026 (1º turno). Não é o resultado da projeção ao vivo.')
     if not observados:
         st.caption('Aguardando parcial posicionável no eixo de votos e projeção '
                    'de volume final validada; referências históricas continuam visíveis.')
