@@ -88,6 +88,9 @@ jobs:
         run: |
           python calibrar_participacao.py --saida /tmp/calibracao_ufs.csv --resumo /tmp/resumo_calibracao.csv
           cat /tmp/resumo_calibracao.csv
+      - name: Backtest temporal do motor zonal completo sem vazamento
+        timeout-minutes: 10
+        run: python backtest_motor_completo.py
       - name: Simular motor completo de 6.292 zonas de 0 a 100 por cento
         timeout-minutes: 3
         run: python simulacao_operacional.py
@@ -106,6 +109,8 @@ jobs:
             /tmp/calibracao_ufs.csv
             /tmp/resumo_calibracao.csv
             /tmp/simulacao_operacional_zonas.csv
+            /tmp/backtest_motor_completo.csv
+            /tmp/resumo_motor_completo.json
           if-no-files-found: warn
           retention-days: 15
 
