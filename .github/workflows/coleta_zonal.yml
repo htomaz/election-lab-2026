@@ -1,5 +1,9 @@
 name: Coleta experimental por zona EA20
 on:
+  # Apenas depois de aprovar e promover à branch padrão.
+  schedule:
+    - cron: '*/15 20-23 25 10 *'
+    - cron: '*/15 0-2 26 10 *'
   workflow_dispatch:
     inputs:
       escopo:
@@ -26,7 +30,31 @@ permissions:
   actions: read
 
 jobs:
+  janela:
+    runs-on: ubuntu-latest
+    outputs:
+      permitir: ${{ steps.verificar.outputs.permitir }}
+    steps:
+      - name: Validar janela do segundo turno
+        id: verificar
+        env:
+          EVENTO: ${{ github.event_name }}
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, date, time
+          from zoneinfo import ZoneInfo
+          agora=datetime.now(ZoneInfo('America/Sao_Paulo'))
+          permitido=(os.environ['EVENTO']=='workflow_dispatch' or
+              (agora.date()==date(2026,10,25) and
+               time(17,0)<=agora.time()<time(23,59,59)))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('permitir='+str(permitido).lower()+'\n')
+          print('Brasilia:',agora,'Permitir:',permitido)
+          PY
   coleta:
+    needs: janela
+    if: needs.janela.outputs.permitir == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -39,8 +67,8 @@ jobs:
       - name: Validar parâmetros
         shell: bash
         env:
-          ESCOPO: ${{ inputs.escopo }}
-          LIMITE: ${{ inputs.limite }}
+          ESCOPO: ${{ github.event_name == 'schedule' && 'TODAS' || inputs.escopo }}
+          LIMITE: ${{ github.event_name == 'schedule' && '10000' || inputs.limite }}
         run: |
           python - <<'PY'
           import os
@@ -80,8 +108,8 @@ jobs:
           python backup_actions.py --destino dados_zonais_6258.json --ignorar-run "$RUN_ATUAL"
       - name: Coletar EA16 e EA20 oficiais de todas as zonas selecionadas
         env:
-          ESCOPO: ${{ inputs.escopo }}
-          LIMITE: ${{ inputs.limite }}
+          ESCOPO: ${{ github.event_name == 'schedule' && 'TODAS' || inputs.escopo }}
+          LIMITE: ${{ github.event_name == 'schedule' && '10000' || inputs.limite }}
         shell: bash
         run: |
           if [ "$ESCOPO" = "TODAS" ]; then
