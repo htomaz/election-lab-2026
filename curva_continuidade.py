@@ -110,6 +110,12 @@ def construir_continuacao(pontos, lula_final, passos_por_pp=2):
         # A derivada em t=0 é tendencia*restante.
         # Em t=1 o valor é exatamente "alvo", sem extrapolação posterior.
         ajuste = (tendencia*restante - diferenca)*t*(1-t)**2
+        # O ritmo observado pode ser ruidoso. Preservar derivada inicial
+        # e alvo final, mas não deixar a curvatura criar excursões grandes
+        # em relação à trajetória retilínea até a estimativa do modelo.
+        # O envelope só limita a VISUALIZAÇÃO, não o resultado projetado.
+        limite = min(.5, max(.12, .18*abs(diferenca)))
+        ajuste = max(-limite, min(limite, ajuste))
         y = y0 + diferenca*t + ajuste
         resultado.append((x, max(0., min(100., y))))
     resultado[0] = (x0, y0)
