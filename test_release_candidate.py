@@ -24,6 +24,28 @@ class TestReleaseCandidate(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'Arquivo divergente'):
                     release_candidate.verificar(manifesto)
 
+    def test_manifesto_da_auditoria_25out_tem_branch_correta(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            arquivo=Path(pasta)/'c.py'
+            arquivo.write_text('auditoria',encoding='utf-8')
+            with patch.object(release_candidate,'ARQUIVOS',(str(arquivo),)), \
+                 patch.object(release_candidate,'commit',return_value='sha-certo'), \
+                 patch.dict(os.environ,{
+                     'GITHUB_REF':'refs/pull/2/merge',
+                     'GITHUB_HEAD_REF':'fix/validacao-conciliacao-25out26',
+                     'GITHUB_EVENT_NAME':'pull_request',
+                     'ELECTION_LAB_EXPECTED_SHA':'sha-certo'}):
+                manifesto=release_candidate.montar()
+                self.assertEqual(manifesto['branch'],
+                                 'fix/validacao-conciliacao-25out26')
+                self.assertTrue(release_candidate.verificar(manifesto))
+
+    def test_branch_aleatoria_nao_pode_emitir_manifesto(self):
+        with patch.dict(os.environ,{'GITHUB_REF':'refs/pull/2/merge',
+                                   'GITHUB_HEAD_REF':'branch-nao-aprovada'}):
+            with self.assertRaisesRegex(ValueError,'outra branch'):
+                release_candidate.montar()
+
     def test_rejeita_branch_main_sem_autorizacao(self):
         with patch.dict(os.environ,{'GITHUB_REF':'refs/heads/main'}):
             with self.assertRaisesRegex(ValueError,'main'):

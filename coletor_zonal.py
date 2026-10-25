@@ -65,11 +65,33 @@ def catalogar_ea16(payload, uf=None):
                 if chave in catalogo:
                     raise ValueError(f'Chave duplicada EA16: {chave}')
                 secoes=z.get('sec',[])
-                if not isinstance(secoes,list):
+                if not isinstance(secoes,list) or any(
+                    not isinstance(sec,dict) for sec in secoes
+                ):
                     raise ValueError(f'EA16: seções inválidas {chave}')
+                # EA16 "sec" contém tanto seções PRINCIPAIS quanto
+                # AGREGADAS. As agregadas têm atributo nsp e seus
+                # votos integram a urna principal. EA20 s.ts conta
+                # somente urnas principais, não len(sec).
+                ids=[str(sec.get('ns','')).zfill(4) for sec in secoes]
+                if len(ids)!=len(set(ids)) or any(
+                    not sec.get('ns') for sec in secoes
+                ):
+                    raise ValueError(f'EA16: seção duplicada/sem ID {chave}')
+                agregadas=[sec for sec in secoes if
+                           str(sec.get('nsp') or '').strip()]
+                principais=[sec for sec in secoes if not
+                            str(sec.get('nsp') or '').strip()]
+                ids_principais={str(sec['ns']).zfill(4)
+                                for sec in principais}
+                if any(str(sec['nsp']).zfill(4) not in ids_principais
+                       for sec in agregadas):
+                    raise ValueError(f'EA16: nsp sem seção principal {chave}')
                 catalogo[chave]={'uf':chave[0],'municipio':chave[1],
                                  'zona':chave[2],'nome':nome,
-                                 'secoes_cadastradas_ea16':len(secoes)}
+                                 'secoes_cadastradas_ea16':len(principais),
+                                 'secoes_agregadas_ea16':len(agregadas),
+                                 'secoes_listadas_ea16':len(secoes)}
     if not catalogo or (uf is not None and uf.upper() not in encontrados):
         raise ValueError(f'EA16 sem zonas da abrangência {uf or "BR"}')
     return catalogo

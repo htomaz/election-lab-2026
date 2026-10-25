@@ -169,3 +169,28 @@ jobs:
           name: release-candidate-sha256
           path: release-candidate.json
           retention-days: 30
+
+  reconciliacao_oficial:
+    name: Auditoria EA16 x EA20 (28 UFs e BR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencias da auditoria
+        run: pip install 'requests>=2.31,<3'
+      - name: Conciliar cadastro e seções oficiais antes da apuração
+        run: python auditoria_pre_apuracao.py --saida /tmp/auditoria_pre_25out26.json
+      - name: Guardar diagnóstico integral mesmo em divergência
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-pleito-3221-ea16-ea20
+          path: /tmp/auditoria_pre_25out26.json
+          retention-days: 30
+          if-no-files-found: warn
