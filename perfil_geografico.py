@@ -82,14 +82,20 @@ def compor_perfis_conciliados(brutos_uf, snapshot, historico_zonas):
             somas={'lula_apurado_hist':0,'direita_apurado_hist':0,
                    'lula_total_hist':total_hist['lula'],
                    'direita_total_hist':total_hist['direita']}
+            # Não tratar uma zona observada SEM histórico como se tivesse
+            # preferência histórica zero. Isso enviesaria a composição do
+            # conjunto apurado e, por diferença, a do remanescente.
+            if any(periodo not in historico_zonas.get(chave, {})
+                   for chave in g['chaves']):
+                periodos = {}
+                break
             for chave in g['chaves']:
-                base=historico_zonas.get(chave,{}).get(periodo)
-                if base:
-                    somas['lula_apurado_hist']+=base['lula']
-                    somas['direita_apurado_hist']+=base['direita']
+                base=historico_zonas[chave][periodo]
+                somas['lula_apurado_hist']+=base['lula']
+                somas['direita_apurado_hist']+=base['direita']
             periodos[periodo]=somas
         # O helper no modelo valida totais, cobertura e períodos.
-        if periodos:
+        if periodos and len(periodos) == 2:
             resultado[uf]={'lula_atual':g['lula'],
                            'flavio_atual':g['flavio'],
                            'periodos':periodos}
