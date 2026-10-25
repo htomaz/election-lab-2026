@@ -38,16 +38,29 @@ def comparar_catalogo(catalogo, oficiais, historico=None, exigir_sem_votos=True)
     ant = {k for k,periodos in historico.items() if (2026,1) in periodos}
     ufs = []
     total_ea16 = 0
+    total_agregadas_ea16 = 0
+    total_listadas_ea16 = 0
     total_ea20 = 0
     total_aptos = 0
     for uf in UFS:
         items = {k:v for k,v in catalogo.items() if k[0] == uf}
         se = sum(int(x['secoes_cadastradas_ea16']) for x in items.values())
+        agregadas=sum(int(x.get('secoes_agregadas_ea16',0)) for x in items.values())
+        listadas=sum(int(x.get('secoes_listadas_ea16',
+                               x['secoes_cadastradas_ea16'])) for x in items.values())
         total_ea16 += se
+        total_agregadas_ea16 += agregadas
+        total_listadas_ea16 += listadas
+        if listadas != se+agregadas:
+            erros.append(f'{uf}: principais + agregadas não fecham com EA16')
         hist = {k for k in ant if k[0]==uf}
         cobertura = 100*len(set(items)&hist)/len(hist) if hist else None
         oficial = oficiais.get(uf)
-        saida = {'uf':uf,'zonas_ea16':len(items),'secoes_ea16':se,
+        saida = {'uf':uf,'zonas_ea16':len(items),
+                 'secoes_principais_ea16':se,
+                 'secoes_agregadas_ea16':agregadas,
+                 'secoes_listadas_ea16':listadas,
+                 'secoes_ea16':se,
                  'secoes_ea20':None,'eleitorado_ea20':None,
                  'cobertura_historica_pct':round(cobertura,3)
                  if cobertura is not None else None,
@@ -75,7 +88,11 @@ def comparar_catalogo(catalogo, oficiais, historico=None, exigir_sem_votos=True)
             datetime.now(timezone.utc).isoformat(),
         'ufs_esperadas':len(UFS),'zonas_ea16':len(catalogo),
         'zonas_historicas_t1':len(ant),
-        'secoes_ea16':total_ea16,'secoes_ea20_ufs':total_ea20,
+        'secoes_ea16':total_ea16,
+        'secoes_principais_ea16':total_ea16,
+        'secoes_agregadas_ea16':total_agregadas_ea16,
+        'secoes_listadas_ea16':total_listadas_ea16,
+        'secoes_ea20_ufs':total_ea20,
         'secoes_ea20_br':br['secoes_total'] if br else None,
         'eleitorado_ea20_ufs':total_aptos,
         'eleitorado_ea20_br':br.get('aptos') if br else None,

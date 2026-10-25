@@ -202,10 +202,28 @@ class TestColetorZonal(unittest.TestCase):
         self.assertEqual(len(x),2)
         self.assertEqual(x[self.a]['nome'],'SÃO PAULO')
         self.assertEqual(x[self.a]['secoes_cadastradas_ea16'],1)
+        self.assertEqual(x[self.a]['secoes_agregadas_ea16'],0)
         self.assertEqual(x[('SP','71072','0237')]['zona'],'0237')
         with self.assertRaisesRegex(ValueError,'duplicada'):
             catalogar_ea16({'abr':[{'cd':'SP','mu':[{
                 'cd':'71072','zon':[{'cd':'1','sec':[]},{'cd':'0001','sec':[]}]}]}]})
+
+    def test_ea16_conta_principal_sem_duplicar_agregada(self):
+        # nsp identifica a seção principal. nsa é apenas o vínculo reverso.
+        p={'abr':[{'cd':'SP','mu':[{'cd':'71072','zon':[
+            {'cd':'1','sec':[
+                {'ns':'0001','nsa':['0002','0003']},
+                {'ns':'0002','nsp':'0001'},
+                {'ns':'0003','nsp':'0001'},
+                {'ns':'0004'}]}
+        ]}]}]}
+        zona=catalogar_ea16(p)[self.a]
+        self.assertEqual(zona['secoes_cadastradas_ea16'],2)
+        self.assertEqual(zona['secoes_agregadas_ea16'],2)
+        self.assertEqual(zona['secoes_listadas_ea16'],4)
+        p['abr'][0]['mu'][0]['zon'][0]['sec'][1]['nsp']='9999'
+        with self.assertRaisesRegex(ValueError,'nsp sem seção principal'):
+            catalogar_ea16(p)
 
 
 if __name__=='__main__':
