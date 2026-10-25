@@ -16,6 +16,8 @@ import time
 from pathlib import Path
 
 from importar_participacao import carregar_participacao
+from modelo import projetar_locais
+from tse import UFS
 from modelo_zonas import carregar_zonas
 from motor_zonal_completo import executar, id_zona
 
@@ -85,6 +87,14 @@ def executar_teste():
     verdade=100*alvo_l/(alvo_l+alvo_f)
     alvo_validos=sum(x['validos'] for x in alvos.values())
     rows=[]
+    uf_hist=defaultdict(lambda: {(2022,2):{
+        'lula':0,'direita':0,'validos':0}})
+    zonas_total=defaultdict(int)
+    for k in alvos:
+        zonas_total[k[0]]+=1
+    for k,reg in antigos.items():
+        for campo in ('lula','direita','validos'):
+            uf_hist[k[0]][(2022,2)][campo]+=reg[(2022,2)][campo]
     for nome,classe,order in ordenacoes(alvos,antigos):
         for pct in ETAPAS:
             n=round(len(order)*pct/100)
@@ -92,6 +102,39 @@ def executar_teste():
                   'catalogo_origem':'RETROSPECTIVO_NAO_OFICIAL',
                   'catalogo':catalogo,
                   'observacoes':{id_zona(k):observaveis[k] for k in order[:n]}}
+            # Mesmo conjunto de zonas da rodada para todos os métodos.
+            observadas_uf=defaultdict(lambda:{
+                'lula':0,'flavio':0,'validos':0,'secoes':0})
+            for k in order[:n]:
+                h=alvos[k]
+                a=observadas_uf[k[0]]
+                a['lula']+=h['lula']
+                a['flavio']+=h['direita']
+                a['validos']+=h['validos']
+                a['secoes']+=1
+            parciais_uf={uf:{**observadas_uf[uf],
+                            'secoes_total':zonas_total[uf]} for uf in UFS}
+            t_uf=time.monotonic()
+            agregado=projetar_locais(parciais_uf,uf_hist,
+                                    peso_2026=0.,intensidade=.35)
+            if not agregado['completo']:
+                raise AssertionError('Baseline UF incompleto')
+            if pct==100 and abs(agregado['lula_pct']-verdade)>.000001:
+                raise AssertionError('Baseline UF não convergiu em 100%')
+            erro_uf=agregado['lula_pct']-verdade
+            rows.append({
+                'cenario':nome,'tipo_cenario':classe,'etapa_pct':pct,
+                'modelo':'agregado_por_uf','zonas_reveladas':n,
+                'zonas_totais':len(alvos),
+                'lula_previsto_pct':round(agregado['lula_pct'],5),
+                'lula_alvo_pct':round(verdade,5),
+                'erro_pp':round(erro_uf,5),
+                'erro_abs_pp':round(abs(erro_uf),5),
+                'votos_validos_previstos_sob_cobertura':None,
+                'votos_validos_verdade_sob_cobertura':None,
+                'erro_relativo_validos_pct':None,
+                'cobertura_participacao_pct':None,
+                'tempo_s':round(time.monotonic()-t_uf,3)})
             for modelo,participacao in (
                 ('motor_zonal_sem_participacao',None),
                 ('motor_zonal_com_participacao',antigos_p)):
@@ -170,13 +213,13 @@ def resumir(rows,verdade,alvo_validos):
         w.writeheader();w.writerows(rows)
     RESUMO_SAIDA.write_text(json.dumps(report,ensure_ascii=False,indent=2))
     for r in summary:
-        if r['tipo_cenario']=='aleatoria':
+        if r['tipo_cenario'] in ('aleatoria','stress_prior'):
             print('BACKTEST_MOTOR_COMPLETO',
                   json.dumps(r,ensure_ascii=False),flush=True)
     print('BACKTEST_MOTOR_INFO',json.dumps({
         'total_linhas':len(rows),'alvo_pct':report['target_pct'],
         'seeds_aleatorias':len(SEMENTES),'stresses':2,
-        'modelos':2,'etapas':len(ETAPAS)},ensure_ascii=False),flush=True)
+        'modelos':3,'etapas':len(ETAPAS)},ensure_ascii=False),flush=True)
     return report
 
 
