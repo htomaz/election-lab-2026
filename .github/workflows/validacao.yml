@@ -77,6 +77,12 @@ jobs:
                      if int(x['progresso_zonas_pct'])==100)
           print('Backtest participação:',len(rows),'previsões por variável')
           PY
+      - name: Relatório retrospectivo de precisão por etapa e cenário
+        run: |
+          python relatorio_backtest_retro.py \
+            --votos /tmp/backtest_comparativo.csv \
+            --participacao /tmp/backtest_participacao.csv \
+            --saida /tmp/relatorio_backtest_retro.csv
       - name: Calibrar intensidade com UFs de avaliação separadas
         timeout-minutes: 5
         run: |
@@ -96,6 +102,7 @@ jobs:
           path: |
             /tmp/backtest_participacao.csv
             /tmp/resumo_participacao.csv
+            /tmp/relatorio_backtest_retro.csv
             /tmp/calibracao_ufs.csv
             /tmp/resumo_calibracao.csv
             /tmp/simulacao_operacional_zonas.csv
