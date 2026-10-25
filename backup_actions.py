@@ -29,7 +29,7 @@ BRANCH='fix/auditoria-pre-segundo-turno'
 def branch_do_backup(branch=None):
     """Mantém ambientes de teste e produção separados por origem."""
     valor=(branch or os.environ.get('ELECTION_LAB_SNAPSHOT_BRANCH')
-           or os.environ.get('GITHUB_REF_NAME') or BRANCH)
+           or BRANCH)
     if valor not in ('main','fix/auditoria-pre-segundo-turno'):
         raise ValueError('Branch de backup não autorizada')
     return valor
