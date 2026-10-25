@@ -38,7 +38,9 @@ def _esperado(caminho):
 def validar(turno, zonas='historico_zonas.csv'):
     eleicao=6257 if turno==1 else 6258
     url=url_resultado_zona(*ZONA,eleicao=eleicao)
-    z=normalizar_ea20(_obter(url),ZONA[0])
+    z=normalizar_ea20(_obter(url),ZONA[0],
+                      abrangencia_esperada='zona',exigir_metadados=True,
+                      eleicao_esperada=eleicao,turno_esperado=turno)
     if z['validos']<=0 or z['secoes']<=0 or z['secoes_total']<=0:
         raise ValueError('EA20 ainda sem apuração válida')
     if turno==1:

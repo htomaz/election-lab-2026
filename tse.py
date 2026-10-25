@@ -56,18 +56,24 @@ def url_resultado_zona(uf: str, municipio: str, zona: str, eleicao: int = ELEICA
 
 
 def normalizar_ea20(payload: dict, uf: str, *,
-                    abrangencia_esperada=None, exigir_metadados=False) -> dict:
+                    abrangencia_esperada=None, exigir_metadados=False,
+                    eleicao_esperada=ELEICAO, turno_esperado=2) -> dict:
     if not isinstance(payload, dict) or 'carg' not in payload:
         raise ValueError(f'{uf}: arquivo sem bloco EA20 carg')
+    # O parser de produção exige 6258/T2 por padrão. Somente a auditoria
+    # histórica pode passar explicitamente 6257/T1; nunca reinterpretar
+    # resultados de outro pleito como votos do segundo turno.
+    if (int(eleicao_esperada),int(turno_esperado)) not in ((6257,1),(6258,2)):
+        raise ValueError('Identidade de eleição/turno não permitida')
     # Conferir identidade do arquivo, não apenas sua estrutura.
     # EA20 oficial identifica eleição, turno, fase e abrangência.
     exigidos=('ele','t','f','tpabr')
     if exigir_metadados and any(k not in payload for k in exigidos):
         raise ValueError(f'{uf}: EA20 sem identidade obrigatória (ele,t,f,tpabr)')
-    if 'ele' in payload and str(payload['ele'])!=str(ELEICAO):
-        raise ValueError(f'{uf}: EA20 de eleição diferente de {ELEICAO}')
-    if 't' in payload and str(payload['t'])!='2':
-        raise ValueError(f'{uf}: EA20 de primeiro turno')
+    if 'ele' in payload and str(payload['ele'])!=str(eleicao_esperada):
+        raise ValueError(f'{uf}: EA20 de eleição diferente de {eleicao_esperada}')
+    if 't' in payload and str(payload['t'])!=str(turno_esperado):
+        raise ValueError(f'{uf}: EA20 de turno diferente de {turno_esperado}')
     if 'f' in payload and str(payload['f']).lower()!='o':
         raise ValueError(f'{uf}: EA20 simulado ou fase desconhecida')
     abr=str(payload.get('tpabr','')).lower()
