@@ -27,13 +27,13 @@ class TestWorkflowColeta(unittest.TestCase):
 
     def test_script_da_janela_compila(self):
         match=re.search(
-            r"- name: Validar janela do segundo turno.*?run: \\|\\n"
-            r"(?P<body>.*?)\\n  coleta:",self.yaml,re.S)
+            r"- name: Validar janela do segundo turno.*?run: \|\n"
+            r"(?P<body>.*?)\n  coleta:",self.yaml,re.S)
         self.assertIsNotNone(match)
         lines=match.group('body').splitlines()
         self.assertTrue(lines[0].strip().startswith("python - <<"))
         self.assertEqual(lines[-1].strip(),'PY')
-        source='\\n'.join(row[10:] if row.startswith(' '*10) else row
+        source='\n'.join(row[10:] if row.startswith(' '*10) else row
                            for row in lines[1:-1])
         ast.parse(source)
 
