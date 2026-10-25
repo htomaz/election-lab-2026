@@ -104,9 +104,16 @@ class TestBackupActions(unittest.TestCase):
         self.assertEqual(len(sess.urls),3)
 
     def test_backup_branch_autorizada(self):
-        with patch.dict('os.environ',{'GITHUB_REF_NAME':'main'},
-                        clear=True):
+        # Branch explicitamente selecionada é determinística e segura.
+        with patch.dict('os.environ',{
+            'ELECTION_LAB_SNAPSHOT_BRANCH':'main',
+            'GITHUB_REF_NAME':'99/merge'},clear=True):
             self.assertEqual(branch_do_backup(),'main')
+        # GITHUB_REF_NAME de PR não deve redirecionar backups.
+        with patch.dict('os.environ',{'GITHUB_REF_NAME':'99/merge'},
+                        clear=True):
+            self.assertEqual(branch_do_backup(),
+                             'fix/auditoria-pre-segundo-turno')
         with self.assertRaisesRegex(ValueError,'não autorizada'):
             branch_do_backup('outra-branch')
 
