@@ -11,6 +11,9 @@ import csv
 import io
 import zipfile
 
+TOTAIS_OFICIAIS = {(2022,2): (118552353,60345999,58206354),
+                   (2026,1): (119300788,53879538,56104503)}
+
 UFS = set(['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO','ZZ'])
 
 
@@ -58,6 +61,23 @@ def importar_zip(caminho, ano, turno, arquivo_saida='data/historico_ufs.csv', ar
                     vistos+=1
     if not arquivos_processados or not acumulado:
         raise ValueError('Não foram encontrados votos presidenciais para o turno especificado; confira arquivo, ano e turno.')
+    # Bloqueia importações incompletas e os votos 2x que apareceram em versões
+    # antigas dos históricos. Não altera arquivos já corretos em caso de falha.
+    cobertura={uf for (uf,_,_) in acumulado}
+    if cobertura != UFS:
+        raise ValueError(f'Importação incompleta: {len(cobertura)}/{len(UFS)} localidades; '
+                         'arquivos existentes preservados.')
+    referencia=TOTAIS_OFICIAIS.get((ano,turno))
+    if referencia:
+        observados=(sum(x[2] for x in acumulado.values()),
+                    sum(x[0] for x in acumulado.values()),
+                    sum(x[1] for x in acumulado.values()))
+        if observados != referencia:
+            raise ValueError(f'Totais do ZIP divergentes dos totais oficiais '
+                             f'({ano}T{turno}): {observados} vs {referencia}. '
+                             'Provável duplicação ou arquivo incorreto. '
+                             'Nenhum CSV foi sobrescrito.')
+
     Path(arquivo_zonas).parent.mkdir(parents=True,exist_ok=True)
     head=['uf','municipio','zona','ano','turno','lula','direita','validos']
     linhas_anteriores=[]

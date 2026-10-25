@@ -1,16 +1,24 @@
-"""Election Lab 2026 v0.3: dashboard mobile, histórico TSE e projeção experimental."""
+"""Election Lab 2026 v0.5: dashboard mobile, histórico TSE e projeção experimental."""
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
+import os
+import subprocess
 from html import escape
 from zoneinfo import ZoneInfo
 import pandas as pd
+import requests
 import plotly.graph_objects as go
 import streamlit as st
+from diagnostico_zonas import diagnosticar_zonas
+from auditoria_ao_vivo import reconciliar_brasil
+from municipios_tse import obter_municipios, nome_municipio, ordenar_municipios
+from painel_zonas import exibir_painel_zonas
+from painel_zonal_completo import exibir_modelo_zonal_completo
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
-from registro import salvar, serie
+from registro import salvar, serie, exportar_csv, restaurar_csv
 from tse import coletar, UFS, resultado_disponivel
 
 st.set_page_config(page_title='Election Lab 2026', page_icon='📊', layout='wide', initial_sidebar_state='collapsed')
@@ -58,6 +66,19 @@ with st.sidebar:
     st.markdown('[Fonte oficial do TSE](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados)')
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def carregar_nomes_municipais():
+    """Uma consulta à configuração de municípios do TSE por dia, compartilhada no app."""
+    return obter_municipios(ROOT/'municipios_2026.csv')
+
+
+def nomes_municipais_seguros():
+    try:
+        return carregar_nomes_municipais(), None
+    except (OSError, ValueError, requests.RequestException) as exc:
+        return {}, f'{type(exc).__name__}: {str(exc)[:130]}'
+
+
 def fmt_pct(v):
     return f'{v:.2f}%'.replace('.', ',') if v is not None and pd.notna(v) else '—'
 
@@ -102,10 +123,15 @@ def painel():
         if not historico:
             st.warning('Histórico não encontrado. A apuração oficial pode ser exibida, mas a projeção permanecerá desativada. Use a aba **Históricos**.')
     nacional = brutos['BR']
+    conciliacao_nacional = None if demo else reconciliar_brasil(brutos, UFS)
     rel = projetar_locais(brutos, historico, peso, vol, intensidade)
     cobertura = rel['completo'] and len(brutos)==29 and all(brutos.get(uf,{}).get('secoes_total',0)>0 for uf in UFS)
     bases26 = sum(1 for uf in UFS if (2026,1) in historico.get(uf,{}))
     mostrar = bool(cobertura and (demo or bases26==28) and (demo or nacional.get('validos',0)>0))
+    if conciliacao_nacional and conciliacao_nacional['status']=='inconsistente':
+        mostrar=False
+        st.error('Diferença entre o arquivo BR e a soma das 28 localidades na mesma geração. '
+                 'Projeções suspensas até nova verificação.')
     progresso = 100*nacional['secoes']/nacional['secoes_total'] if nacional['secoes_total'] else 0
     total2 = nacional['lula'] + nacional['flavio']
     lula_pct = 100*nacional['lula']/total2 if total2 else None
@@ -118,6 +144,11 @@ def painel():
         ('Votos válidos apurados',fmt_int(nacional['validos']), 'Arquivo BR · TSE' if not demo else 'Dados fictícios'),
     ])
     st.caption(f"Arquivo nacional: {nacional['geracao']} · Localidades recebidas: {max(0,len(brutos)-1)}/28")
+    if conciliacao_nacional:
+        st.caption('Auditoria nacional: '+conciliacao_nacional['mensagem'])
+        if conciliacao_nacional['status']=='inconsistente':
+            with st.expander('Diferenças BR menos soma das UFs'):
+                st.json(conciliacao_nacional['diferencas'])
 
     st.markdown('<div class="section-label">Projeção nacional · modelo experimental</div>',unsafe_allow_html=True)
     if mostrar:
@@ -143,6 +174,29 @@ def painel():
         df_serie=pd.DataFrame(itens)
     else:
         salvar(nacional, rel if mostrar else None)
+        with st.expander('Backup e recuperação da série nacional'):
+            backup=exportar_csv()
+            if backup:
+                st.download_button('Baixar histórico de apuração/projeções (CSV)',
+                                   data=backup.encode('utf-8-sig'),
+                                   file_name='election_lab_serie_2026.csv',
+                                   mime='text/csv',key='backup_nacional')
+            else:
+                st.caption('Ainda não há gerações nacionais registradas.')
+            enviado=st.file_uploader('Importar backup CSV anterior',
+                                     type=['csv'],key='restaurar_serie')
+            if enviado is not None and st.button(
+                    'Restaurar série a partir deste arquivo',
+                    key='confirmar_restaurar_serie'):
+                try:
+                    res=restaurar_csv(enviado.getvalue())
+                    st.success(f"Histórico reconciliado: {res['linhas_recebidas']} linhas "
+                               "recebidas, sem regredir gerações existentes.")
+                    st.rerun()
+                except (ValueError,OSError,UnicodeError) as exc:
+                    st.error(f'Backup rejeitado: {exc}')
+            st.caption('Backups manuais são importantes: os arquivos internos '
+                       'do Streamlit gratuito podem desaparecer após reinício.')
         log=serie()
         log=log[log['validos']>0].copy() if not log.empty else log
         if not log.empty:
@@ -159,19 +213,65 @@ def painel():
             fig.add_trace(go.Scatter(x=df_serie['Progresso'],y=df_serie[nome],mode='lines+markers',name=nome,
                 line=dict(color=CORES[nome.split()[0]] if 'apurado' in nome else CORES[nome],dash=tracejado,width=2.5),
                 marker=dict(size=4),hovertemplate='%{x:.1f}% apurado · %{y:.2f}% votos válidos<extra>'+nome+'</extra>'))
-        fig.update_layout(height=365,template='plotly_dark',
-            legend=dict(orientation='h',y=-.31,x=0,font=dict(size=10),itemwidth=30),
-            margin=dict(l=5,r=5,t=5,b=85),
-            xaxis=dict(title='Seções totalizadas (%)',range=[0,101]),
-            yaxis=dict(title='Votos válidos (%)',range=[20,80]),
-            hovermode='x unified',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig,use_container_width=True,config={'displayModeBar':False,'responsive':True})
+        # O zoom vertical acompanha TODAS as quatro curvas (apuradas e projetadas).
+        # Margem pequena evita cortar os marcadores nas extremidades, sem alterar dados.
+        colunas_grafico=['Lula apurado','Flávio apurado','Lula projetado','Flávio projetado']
+        valores_grafico=pd.concat(
+            [pd.to_numeric(df_serie[coluna],errors='coerce') for coluna in colunas_grafico],
+            ignore_index=True).dropna()
+        if not valores_grafico.empty:
+            minimo=float(valores_grafico.min())
+            maximo=float(valores_grafico.max())
+            margem=max(0.20,(maximo-minimo)*0.05)
+            faixa_vertical=[max(0.0,minimo-margem),min(100.0,maximo+margem)]
+        else:
+            faixa_vertical=[0.0,100.0]
+        # Legenda em duas linhas ACIMA do gráfico: fica longe da barra do
+        # Streamlit Community Cloud, que encobre a parte inferior no celular.
+        # O hover individual evita o cartão gigante com as quatro séries.
+        fig.update_layout(height=620,template='plotly_dark',
+            legend=dict(orientation='h',y=1.03,yanchor='bottom',x=0,
+                        font=dict(size=10),itemwidth=30),
+            margin=dict(l=5,r=5,t=100,b=65),
+            xaxis=dict(title='Seções totalizadas (%)',range=[0,101],showspikes=False),
+            yaxis=dict(title='Votos válidos (%)',range=faixa_vertical,
+                       ticksuffix='%',tickformat='.1f',showspikes=False),
+            hovermode='closest',hoverdistance=20,
+            paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
+        # Em telas sensíveis ao toque o Plotly pode manter o hover aberto.
+        # Recriar o gráfico com uma key diferente limpa o cartão fixado.
+        if 'revisao_grafico_evolucao' not in st.session_state:
+            st.session_state['revisao_grafico_evolucao']=0
+        if st.button('✕ Fechar detalhes do gráfico',key='fechar_hover_evolucao'):
+            st.session_state['revisao_grafico_evolucao']+=1
+        st.plotly_chart(fig,width="stretch",
+                        key=f"evolucao_apuracao_{st.session_state['revisao_grafico_evolucao']}",
+                        config={'displayModeBar':False,'responsive':True})
+        st.caption('Escala vertical com zoom automático para destacar variações; os percentuais não são alterados.')
         if demo:
             st.caption('Trajetórias fictícias apenas para testar o painel.')
         else:
             st.caption('A série oficial só registra consultas realizadas enquanto o aplicativo está ativo. O armazenamento gratuito pode ser temporário.')
     else:
         st.info('O gráfico será preenchido à medida que novas parciais forem coletadas.')
+
+    with st.expander('Diagnóstico histórico por zona eleitoral (não é apuração ao vivo)'):
+        caminho_zonas = ROOT/'historico_zonas.csv'
+        if not caminho_zonas.exists():
+            caminho_zonas = ROOT/'data/historico_zonas.csv'
+        if caminho_zonas.exists():
+            @st.cache_data(show_spinner=False)
+            def ler_diagnostico(path, modificacao):
+                return pd.DataFrame(diagnosticar_zonas(path))
+            try:
+                dz = ler_diagnostico(str(caminho_zonas), caminho_zonas.stat().st_mtime_ns)
+                st.caption('Dispersão ponderada das preferências históricas entre zonas. '
+                           'Sem parciais por zona em 2026, não há correção geográfica em tempo real.')
+                st.dataframe(dz, hide_index=True, width="stretch")
+            except (OSError, ValueError) as exc:
+                st.error(f'Histórico territorial inválido: {exc}')
+        else:
+            st.info('Arquivo historico_zonas.csv não encontrado.')
 
     st.markdown('<div class="section-label">Detalhamento por UF</div>',unsafe_allow_html=True)
     if rel['linhas']:
@@ -192,11 +292,18 @@ def painel():
             if mostrar:
                 colunas += ['Lula histórico (%)','Lula projeção (%)','Lula projetado','Flávio projetado']
             tabela=df[colunas]
-            st.dataframe(tabela,hide_index=True,use_container_width=True)
+            st.dataframe(tabela,hide_index=True,width="stretch")
             st.download_button('Baixar tabela CSV',tabela.to_csv(index=False,sep=';',decimal=',').encode('utf-8-sig'),
                 file_name='apuracao_por_uf.csv',mime='text/csv')
     else:
         st.info('Sem dados territoriais para detalhar.')
+    nomes_municipios, erro_nomes = nomes_municipais_seguros()
+    if erro_nomes:
+        st.info('Cadastro de municípios do TSE indisponível nesta consulta: '
+                'alguns nomes podem aparecer acompanhados do código.')
+    exibir_painel_zonas(ROOT, peso, vol, intensidade, demonstracao=demo,
+                        estaduais=brutos, nomes_municipios=nomes_municipios)
+
     if not demo:
         with st.expander('Diagnóstico da coleta'):
             st.write(f'Localidades: {len(brutos)}/29 · Históricos 2026: {bases26}/28')
@@ -264,13 +371,21 @@ def historicos():
         try:
             z=ler_zonas(str(zona_path),zona_path.stat().st_mtime_ns)
             uf=st.selectbox('UF histórica',sorted(z['uf'].unique()),key='uf_historico')
-            mun=st.selectbox('Código TSE do município',sorted(z.loc[z['uf']==uf,'municipio'].unique()),key='mun_historico')
+            nomes_municipios, erro_nomes = nomes_municipais_seguros()
+            if erro_nomes:
+                st.info('Não foi possível consultar o cadastro oficial de nomes dos municípios. '
+                        'O código eleitoral será exibido apenas onde faltar o nome.')
+            codigos=ordenar_municipios(uf,z.loc[z['uf']==uf,'municipio'].unique(),
+                                       nomes_municipios)
+            mun=st.selectbox('Município',codigos,
+                             format_func=lambda codigo: nome_municipio(uf,codigo,nomes_municipios),
+                             key='mun_historico')
             zona=st.selectbox('Zona eleitoral',sorted(z.loc[(z['uf']==uf)&(z['municipio']==mun),'zona'].unique()),key='zona_historico')
             subset=z[(z['uf']==uf)&(z['municipio']==mun)&(z['zona']==zona)].copy()
             subset['Lula (%) válidos']=100*subset['lula']/subset['validos'].replace(0,float('nan'))
             subset['Candidato 22 (%) válidos']=100*subset['direita']/subset['validos'].replace(0,float('nan'))
             st.dataframe(subset[['ano','turno','lula','direita','validos','Lula (%) válidos','Candidato 22 (%) válidos']],
-                hide_index=True,use_container_width=True)
+                hide_index=True,width="stretch")
             st.caption('Em 2022, o número 22 corresponde a Jair Bolsonaro; em 2026, a Flávio Bolsonaro. Os percentuais de 2026 usam todos os votos válidos do primeiro turno como denominador.')
         except Exception as e:
             st.error(f'Falha na leitura do histórico territorial: {e}')
@@ -279,10 +394,35 @@ def historicos():
     st.caption('Fonte: https://dadosabertos.tse.jus.br/dataset/resultados-2022 e https://dadosabertos.tse.jus.br/dataset/resultados-2026')
 
 
-aba1,aba2=st.tabs(['📈 Painel','🗂️ Históricos'])
+aba1,aba2,aba3=st.tabs(['📈 Painel','🧭 Zonas','🗂️ Históricos'])
 with aba1:
     painel()
 with aba2:
+    nomes_municipios, erro_nomes = nomes_municipais_seguros()
+    if erro_nomes:
+        st.info('Cadastro municipal não carregado nesta sessão; '
+                'os códigos TSE serão exibidos apenas onde o nome estiver ausente.')
+    exibir_modelo_zonal_completo(ROOT, nomes=nomes_municipios,
+                                peso_2026=peso,ajuste_volume=vol,
+                                intensidade=intensidade)
+with aba3:
     historicos()
 st.divider()
-st.caption('Election Lab 2026 v0.3 · Projeto independente. Resultado apurado = fonte TSE; projeções = estimativas experimentais, não oficiais.')
+def commit_publicado():
+    # Mostra a versão realmente executada para comparar com o manifesto
+    # release-candidate.json. Não depende de senha/token nem faz requests.
+    sha=os.environ.get('STREAMLIT_GIT_COMMIT_SHA') or os.environ.get('GITHUB_SHA')
+    if not sha:
+        try:
+            sha=subprocess.check_output(['git','rev-parse','HEAD'],
+                                        cwd=ROOT,text=True,
+                                        stderr=subprocess.DEVNULL,
+                                        timeout=3).strip()
+        except (OSError,subprocess.SubprocessError):
+            sha=None
+    return sha[:12] if sha else 'não identificado'
+
+
+st.caption('Election Lab 2026 · commit '+commit_publicado()
+           +' · Projeto independente. Resultado apurado = fonte TSE; '
+           'projeções = estimativas experimentais, não oficiais.')

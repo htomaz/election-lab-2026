@@ -1,0 +1,19 @@
+# Secrets and credentials — never commit to GitHub
+.streamlit/secrets.toml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Runtime/state and temporary artifacts
+data/*.sqlite
+data/*.sqlite-*
+dados_zonais_6258.json
+dados_zonais_6258.json.lock
+snapshot.sha256
+release-candidate.json
+visual-auditoria/
+*.log
+__pycache__/
+.pytest_cache/
+*.py[cod]

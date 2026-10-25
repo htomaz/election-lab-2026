@@ -8,7 +8,6 @@ histórico sujeito a divergências relevantes.
 from __future__ import annotations
 import csv
 from pathlib import Path
-from math import sqrt
 from tse import UFS
 
 COLS = ['uf','ano','turno','lula','direita','validos']
@@ -44,7 +43,7 @@ def base_uf(uf, refs, peso_2026=0.75):
         ratio=peso_2026*ratio_a+(1-peso_2026)*ratio_b
     else: ratio=ratio_a if ratio_a is not None else ratio_b
     validos=(a or b)['validos']
-    if validos <= 0:return None
+    if validos <= 0 or (a and a['validos'] < a['lula'] + a['direita']):return None
     return {'prior':ratio,'volume':validos,'tem_2026':a is not None,'tem_2022':b is not None}
 
 
@@ -71,13 +70,19 @@ def projetar_locais(localidades, historico, peso_2026=.75, ajuste_volume=1., int
         p=secoes/total_secoes if total_secoes else 0.0
         p=min(1.,max(0.,p))
         historico_validos=ref['volume']*ajuste_volume
-        if p and obs_v:
+        # Com todas as seções totalizadas, o resultado observado prevalece.
+        # Não projetar votos remanescentes quando a apuração local acabou.
+        if total_secoes > 0 and secoes >= total_secoes:
+            pred_total = obs_v
+        else:
+            pred_total = None
+        if pred_total is None and p and obs_v:
             extrapolacao = obs_v / p
             # evitar extrapolação extrema nas primeiras seções
             peso_observado = .30*min(1.,p/.15)
             pred_total=max(obs_v, historico_validos*(1-peso_observado)+extrapolacao*peso_observado)
-        else:
-            pred_total=historico_validos
+        elif pred_total is None:
+            pred_total=max(obs_v, historico_validos)
         rem=max(0.,pred_total-obs_v)
         frac_atual=(obs_l/(obs_l+obs_f)) if (obs_l+obs_f) else None
         # Parcial local não é amostra aleatória; limitar variação transmitida.
