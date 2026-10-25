@@ -643,12 +643,14 @@ def painel_estados_compacto():
                               if all(v is not None for v in absts) else None)
         linhas_regiao.append(formatar_linha_apuracao(nome,soma))
 
-    st.markdown('**Regiões**')
-    tabela_apuracao_compacta(linhas_regiao)
-    st.markdown('**Estados e DF**')
-    linhas_uf = [formatar_linha_apuracao(uf,dados.get(uf))
-                 for uf in sorted(u for u in UFS if u != 'ZZ')]
-    tabela_apuracao_compacta(linhas_uf)
+    st.markdown('**Regiões e respectivos estados**')
+    # Cada total regional aparece imediatamente antes das suas UFs.
+    # Os totais oficiais são somas de seções/votos, nunca projeções.
+    for (nome, ufs), linha_regiao in zip(REGIOES_UFS.items(), linhas_regiao):
+        st.markdown('**'+nome+'**')
+        tabela_apuracao_compacta([linha_regiao] + [
+            formatar_linha_apuracao(uf, dados.get(uf)) for uf in ufs
+        ])
     st.caption('Urnas = % de seções totalizadas; Seções = apuradas/total. '
                'Lula e Flávio = votos oficiais; Abst. = eleitores ausentes '
                'nas seções totalizadas (quantidade, não taxa). '
