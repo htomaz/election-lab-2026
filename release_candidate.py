@@ -18,7 +18,8 @@ BRANCH='fix/auditoria-pre-segundo-turno'
 BRANCHES_PERMITIDAS=(BRANCH,'fix/validacao-conciliacao-25out26',
                      'feature/curvas-medias-fixas-por-votos')
 ARQUIVOS=(
-    'app.py','curva_continuidade.py','perfil_geografico.py',
+    'app.py','curva_continuidade.py','recuperacao_nacional.py',
+    'test_recuperacao_nacional.py','perfil_geografico.py',
     'data/curvas_medias_apuracao_2022T2_2026T1.csv',
     'test_curva_continuidade.py','test_modelo_composicao.py',
     'test_perfil_geografico.py','tse.py','modelo.py','modelo_zonas.py',
