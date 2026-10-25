@@ -112,6 +112,14 @@ class TestBackupActions(unittest.TestCase):
         # GITHUB_REF_NAME de PR não deve redirecionar backups.
         with patch.dict('os.environ',{'GITHUB_REF_NAME':'99/merge'},
                         clear=True):
+            self.assertEqual(branch_do_backup(),'main')
+        # O workflow usa a branch padrão sem depender de Secrets privados.
+        with patch.dict('os.environ',{'GITHUB_REF_NAME':'main'},
+                        clear=True):
+            self.assertEqual(branch_do_backup(),'main')
+        with patch.dict('os.environ',{'ELECTION_LAB_SNAPSHOT_BRANCH':
+                                     'fix/auditoria-pre-segundo-turno'},
+                        clear=True):
             self.assertEqual(branch_do_backup(),
                              'fix/auditoria-pre-segundo-turno')
         with self.assertRaisesRegex(ValueError,'não autorizada'):
