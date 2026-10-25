@@ -566,10 +566,69 @@ def historicos():
     st.caption('Fonte: https://dadosabertos.tse.jus.br/dataset/resultados-2022 e https://dadosabertos.tse.jus.br/dataset/resultados-2026')
 
 
-aba1,aba2,aba3=st.tabs(['📈 Painel','🧭 Zonas','🗂️ Históricos'])
+def painel_estados_compacto():
+    """Quadro compacto exclusivamente com parciais oficiais por UF."""
+    st.markdown('#### Apuração por estado')
+    if modo.startswith('Demonstração'):
+        st.info('Selecione **TSE oficial · 2º turno** na barra lateral para ver os votos reais por estado.')
+        return
+    if not resultado_disponivel():
+        st.info('Aguardando divulgação oficial.')
+        return
+    dados, erros = obter_tse()
+    if not dados:
+        st.warning('Nenhuma parcial estadual disponível nesta consulta.')
+        return
+    # BR é total nacional, ZZ representa votos do exterior, não um estado.
+    linhas = []
+    for uf in sorted(u for u in UFS if u != 'ZZ'):
+        d = dados.get(uf)
+        if not d:
+            linhas.append((uf, '—', '—', '—', '—'))
+            continue
+        secoes = int(d.get('secoes', 0))
+        total = int(d.get('secoes_total', 0))
+        pct = 100 * secoes / total if total else 0.
+        linhas.append((uf, f'{pct:.1f}'.replace('.', ',')+'%',
+                       fmt_int(secoes)+'/'+fmt_int(total),
+                       fmt_int(int(d.get('lula', 0))),
+                       fmt_int(int(d.get('flavio', 0)))))
+    # CSS compacto: 27 linhas em uma única imagem vertical no celular.
+    celulas = ''.join(
+        '<tr><td>'+escape(uf)+'</td><td>'+escape(pct)+'</td>'
+        '<td>'+escape(secoes)+'</td><td>'+escape(lula)+'</td>'
+        '<td>'+escape(flavio)+'</td></tr>'
+        for uf,pct,secoes,lula,flavio in linhas)
+    tabela = (
+        '<div class="ufs-compactas"><table><thead><tr>'
+        '<th>UF</th><th>Urnas</th><th>Seções</th>'
+        '<th class="lula">Lula</th><th class="flavio">Flávio</th>'
+        '</tr></thead><tbody>'+celulas+'</tbody></table></div>')
+    st.markdown("""<style>
+    .ufs-compactas{width:100%;overflow:hidden}
+    .ufs-compactas table{width:100%;border-collapse:collapse;table-layout:auto;
+      font-size:clamp(9px,2.65vw,12px);font-variant-numeric:tabular-nums;line-height:1.1}
+    .ufs-compactas th,.ufs-compactas td{padding:4px 2px;text-align:right;
+      white-space:nowrap;border-bottom:1px solid #263346}
+    .ufs-compactas th:first-child,.ufs-compactas td:first-child{text-align:left;font-weight:700}
+    .ufs-compactas th{color:#dce7f5;border-bottom:1px solid #64748b}
+    .ufs-compactas .lula{color:#f06a70}
+    .ufs-compactas .flavio{color:#36b5eb}
+    @media(max-width:400px){.ufs-compactas th,.ufs-compactas td{padding:3px 1px}}
+    </style>""",unsafe_allow_html=True)
+    st.markdown(tabela,unsafe_allow_html=True)
+    st.caption('Urnas = % de seções totalizadas; seções = apuradas/total. '
+               'Lula e Flávio = votos oficiais, não projeções. '
+               'Exterior (ZZ) não incluído. Gerações estaduais podem ter horários diferentes.')
+    st.caption('Atualização: '+str(dados.get('BR',{}).get('geracao','não informada')))
+
+
+aba1,aba2,aba3,aba4=st.tabs(['📈 Painel','🗺️ Estados','🧭 Zonas','🗂️ Históricos'])
 with aba1:
     painel()
 with aba2:
+    painel_estados_compacto()
+with aba3:
     nomes_municipios, erro_nomes = nomes_municipais_seguros()
     if erro_nomes:
         st.info('Cadastro municipal não carregado nesta sessão; '
@@ -577,7 +636,7 @@ with aba2:
     exibir_modelo_zonal_completo(ROOT, nomes=nomes_municipios,
                                 peso_2026=peso,ajuste_volume=vol,
                                 intensidade=intensidade)
-with aba3:
+with aba4:
     historicos()
 st.divider()
 def commit_publicado():
