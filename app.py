@@ -681,6 +681,61 @@ def painel_estados_compacto():
         '<th>Apuradas</th><th>Total</th></tr></thead><tbody>'
         +celulas_pendentes+'</tbody></table></div>',
         unsafe_allow_html=True)
+    st.markdown('#### Votos estimados restantes por estado')
+    st.caption('Barras horizontais: votos válidos que o modelo estima ainda '
+               'faltar apurar. Percentual ao lado: seções restantes oficiais.')
+    historico_uf = carregar_historico(
+        ROOT/'historico_ufs.csv' if (ROOT/'historico_ufs.csv').exists()
+        else ROOT/'data/historico_ufs.csv')
+    composicao = (composicao_zonal_uf_somente_quando_conciliada(dados)
+                  if testar_correcao_geografica else None)
+    previsao_ufs = projetar_locais(dados, historico_uf, peso, vol,
+                                  intensidade, composicao_historica=composicao)
+    barras = []
+    for item in previsao_ufs['linhas']:
+        uf = item['UF']
+        d = dados.get(uf)
+        if not d:
+            continue
+        total, apuradas = int(d.get('secoes_total',0)), int(d.get('secoes',0))
+        if total <= 0 or not 0 <= apuradas <= total:
+            continue
+        restante = max(0, round(float(item['Votos válidos projetados'])
+                                -float(item['Votos válidos apurados'])))
+        barras.append((uf,restante,100*(total-apuradas)/total))
+    barras.sort(key=lambda x:(-x[1],x[0]))
+    if barras:
+        maximo = max(1,max(x[1] for x in barras))
+        # HTML mantém os 27 estados em altura pequena, ideal para screenshot.
+        linhas_barras = ''.join(
+            '<div class="faltam-linha"><b>'+escape(uf)+'</b>'
+            '<div class="faltam-trilho"><div class="faltam-barra" '
+            'style="width:'+f'{100*votos/maximo:.2f}'+'%"></div></div>'
+            '<span>'+escape(fmt_int(votos))+'</span>'
+            '<em>'+f'{pct:.1f}'.replace('.',',')+'%</em></div>'
+            for uf,votos,pct in barras)
+        st.markdown("""<style>
+        .faltam-linha{display:grid;grid-template-columns:25px minmax(30px,1fr)
+            83px 47px;align-items:center;gap:5px;min-height:18px;
+            font-size:clamp(9px,2.5vw,11px);font-variant-numeric:tabular-nums}
+        .faltam-linha b{font-weight:700}
+        .faltam-linha span,.faltam-linha em{text-align:right;font-style:normal}
+        .faltam-trilho{height:9px;border-radius:3px;background:#263346;overflow:hidden}
+        .faltam-barra{height:100%;background:#70b6e9}
+        </style>""",unsafe_allow_html=True)
+        st.markdown('<div class="faltam-linha"><b>UF</b><b>Votos restantes</b>'
+                    '<b style="text-align:right">Votos</b>'
+                    '<b style="text-align:right">% urnas</b></div>'
+                    +linhas_barras,unsafe_allow_html=True)
+        st.caption('Votos restantes = votos válidos finais estimados pelo '
+                   'modelo por UF menos votos válidos já apurados. '
+                   'Estimativa experimental, não dado oficial. '
+                   'A porcentagem de urnas restantes é oficial '
+                   '(seções não totalizadas / seções totais). '
+                   'Ordenação: maior volume estimado de votos restantes.')
+    else:
+        st.info('Sem histórico ou dados estaduais suficientes para estimar '
+                'os votos restantes.')
     if ausentes:
         st.caption('Sem dados válidos para o ranking: '+', '.join(ausentes)+'.')
     st.caption('Critério: seções restantes = total de seções − seções '
