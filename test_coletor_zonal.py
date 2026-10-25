@@ -133,6 +133,68 @@ class TestColetorZonal(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'faixa segura'):
                 self._executar_teste(Path(dir)/'dados.json',taxa=150)
 
+    def test_snapshot_ficticio_nao_pode_virar_oficial(self):
+        with tempfile.TemporaryDirectory() as dir:
+            arq=Path(dir)/'dados.json'
+            self._executar_teste(arq)
+            original=arq.read_bytes()
+            with self.assertRaisesRegex(ValueError,'não misturar'):
+                coletar(arq,uf='SP',permitir_antes=True,clock=lambda:self.tempo)
+            self.assertEqual(arq.read_bytes(),original)
+
+    def test_snapshot_oficial_nao_pode_virar_teste(self):
+        with tempfile.TemporaryDirectory() as dir:
+            arq=Path(dir)/'dados.json'
+            with patch('coletor_zonal.consultar_config',
+                       return_value={'pleito_2turno_confirmado':True}), \
+                 patch('coletor_zonal.baixar_catalogo',
+                       return_value=self.catal):
+                coletar(arq,uf='SP',limite=2,coletar_zona=self.buscar,
+                       permitir_antes=True,clock=lambda:self.tempo,
+                       sleep=lambda t:None)
+            with self.assertRaisesRegex(ValueError,'não misturar'):
+                self._executar_teste(arq)
+
+    def test_rejeita_resposta_de_outra_zona_e_votos_invalidos(self):
+        with tempfile.TemporaryDirectory() as dir:
+            arq=Path(dir)/'dados.json'
+            def buscar_errado(uf,municipio,zona):
+                obs,_=self.buscar(uf,municipio,zona)
+                obs['zona']='9999'
+                return obs,None
+            r=coletar(arq,uf='SP',limite=2,origem=self.catal,
+                     coletar_zona=buscar_errado,permitir_antes=True,
+                     clock=lambda:self.tempo,sleep=lambda t:None)
+            self.assertEqual(r['atualizadas'],0)
+            self.assertEqual(r['erros'],2)
+            self.assertFalse(json.loads(arq.read_text())['observacoes'])
+            def votos_errados(uf,municipio,zona):
+                obs,_=self.buscar(uf,municipio,zona)
+                obs['validos']=101
+                return obs,None
+            r=coletar(arq,uf='SP',limite=2,origem=self.catal,
+                     coletar_zona=votos_errados,permitir_antes=True,
+                     clock=lambda:self.tempo,sleep=lambda t:None)
+            self.assertEqual(r['atualizadas'],0)
+
+    def test_circuit_breaker_apos_20_timeouts(self):
+        with tempfile.TemporaryDirectory() as dir:
+            catalogo={}
+            for i in range(1,46):
+                k=('SP','71072',str(i).zfill(4))
+                catalogo[k]={'uf':k[0],'municipio':k[1],'zona':k[2]}
+            def timeout(*_):
+                return None,'ReadTimeout: falha temporária'
+            arq=Path(dir)/'dados.json'
+            r=coletar(arq,uf='SP',limite=45,origem=catalogo,
+                     coletar_zona=timeout,permitir_antes=True,
+                     concorrencia=1,clock=lambda:self.tempo,
+                     sleep=lambda s:None)
+            self.assertTrue(r['interrompido'])
+            self.assertEqual(r['requisicoes'],20)
+            self.assertEqual(r['atualizadas'],0)
+            self.assertEqual(len(json.loads(arq.read_text())['observacoes']),0)
+
     def test_cat_ea16_uf_municipio_zona_com_zeros(self):
         p={'abr':[{'cd':'SP','mu':[{'cd':'71072','nm':'SÃO PAULO',
                                   'zon':[{'cd':'1','sec':[{'ns':'0001'}]},{'cd':'0237','sec':[]}]}]}]}

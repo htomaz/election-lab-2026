@@ -205,6 +205,31 @@ def _is_bloqueio(erro):
     return bool(erro and any(c in str(erro) for c in BLOQUEANTES))
 
 
+def _validar_observacao_zonal(chave, observacao):
+    """Não permitir que respostas malformadas contaminem o snapshot oficial."""
+    if not isinstance(observacao, dict):
+        raise ValueError('Resposta zonal não é um objeto')
+    uf, municipio, zona = chave
+    if (str(observacao.get('uf','')).upper()!=uf or
+        str(observacao.get('municipio','')).zfill(5)!=municipio or
+        str(observacao.get('zona','')).zfill(4)!=zona):
+        raise ValueError('Resposta EA20 não corresponde à zona solicitada')
+    campos=('lula','flavio','validos','secoes','secoes_total')
+    if any(type(observacao.get(c)) is not int or observacao[c]<0
+           for c in campos):
+        raise ValueError('Votos ou seções não são inteiros não negativos')
+    if observacao['lula']+observacao['flavio']!=observacao['validos']:
+        raise ValueError('Votos válidos divergentes dos dois candidatos')
+    if observacao['secoes']>observacao['secoes_total'] or (
+        observacao['validos']>0 and observacao['secoes']==0
+    ):
+        raise ValueError('Seções EA20 incompatíveis com os votos')
+    try:
+        datetime.strptime(observacao['geracao'], '%d/%m/%Y %H:%M:%S')
+    except (ValueError,TypeError,KeyError) as exc:
+        raise ValueError('Geração EA20 ausente ou malformada') from exc
+
+
 def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
             concorrencia=8, renovar_apos=120, agora=None, origem=None,
             coletar_zona=None, permitir_antes=False, clock=None, sleep=None):
@@ -227,6 +252,15 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
     clock=clock or time.time
     sleep=sleep or time.sleep
     dados=carregar_arquivo(caminho)
+    # Jamais transformar votos fictícios em oficiais (nem o inverso) ao
+    # reutilizar o mesmo nome de arquivo. Exigir snapshots separados.
+    origem_esperada=('CATALOGO_INJETADO_TESTE' if origem is not None
+                     else 'EA16_TSE_3221')
+    if (dados.get('catalogo') or dados.get('observacoes')) and (
+        dados.get('catalogo_origem')!=origem_esperada
+    ):
+        raise ValueError('Snapshot de origem diferente: não misturar '
+                         'dados simulados e oficiais; use outro arquivo')
     ultimo_catalogo=_cat_existente(dados)
     data_cat=dados.get('catalogo_atualizado_em')
     idade_cat=clock()-float(data_cat) if data_cat is not None else float('inf')
@@ -305,6 +339,7 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
     aceitas=0
     erros=[]
     bloqueio=False
+    falhas_consecutivas=0
     ultimo_checkpoint=time.monotonic()
 
     def checkpoint():
@@ -341,10 +376,13 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
                 chave=pendentes.pop(futuro)
                 try:
                     obs,erro=futuro.result()
+                    if not erro and obs:
+                        _validar_observacao_zonal(chave,obs)
                 except Exception as exc:
                     obs,erro=None,f'{type(exc).__name__}: {exc}'
                 if erro:
                     erros.append({'zona':id_zona(chave),'erro':str(erro)[:180]})
+                    falhas_consecutivas+=1
                     bloqueio=bool(bloqueio or _is_bloqueio(erro))
                 elif obs:
                     k=id_zona(chave)
@@ -353,10 +391,20 @@ def _coletar_impl(caminho, uf=None, todas=False, limite=300, taxa=12.,
                     if ok:
                         anteriores[k]=observacao
                         aceitas+=1
+                        falhas_consecutivas=0
                     else:
                         erros.append({'zona':k,'erro':motivo})
+                        falhas_consecutivas+=1
                 else:
                     erros.append({'zona':id_zona(chave),'erro':'Resposta vazia'})
+                    falhas_consecutivas+=1
+                # Fail-safe: um lote de erros persistentes (timeout, 5xx ou
+                # dados inválidos) não deve disparar milhares de novos GETs.
+                if falhas_consecutivas>=20:
+                    bloqueio=True
+                    dados['motivo_bloqueio']='20 falhas consecutivas na coleta'
+            if bloqueio and not dados.get('motivo_bloqueio'):
+                dados['motivo_bloqueio']='HTTP 403/404/429; verificar fonte TSE'
             # Persiste parciais enquanto a coleta está em curso, não
             # somente após milhares de GETs. Recuperação após interrupção.
             if aceitas and (aceitas%100==0 or
