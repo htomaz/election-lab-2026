@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 BRANCH='fix/auditoria-pre-segundo-turno'
+BRANCHES_PERMITIDAS=(BRANCH,'fix/validacao-conciliacao-25out26')
 ARQUIVOS=(
     'app.py','tse.py','modelo.py','modelo_zonas.py',
     'modelo_participacao.py','motor_zonal_completo.py',
@@ -23,6 +24,8 @@ ARQUIVOS=(
     'auditar_coleta_programada.py','serie_nacional_actions.py',
     '.github/workflows/coleta_zonal.yml','.github/workflows/validacao.yml',
     'preflight_tse.py','auditoria_snapshot_zonal.py',
+    'auditoria_pre_apuracao.py','teste_integracao_tse.py',
+    'test_auditoria_pre_apuracao.py','test_parser_historico_2026.py',
     'release_candidate.py','visual_e2e.py','requirements.txt',
     'historico_zonas.csv','historico_ufs.csv',
     'historico_participacao_zonas.csv',
@@ -45,7 +48,9 @@ def commit():
 def montar():
     if os.getenv('GITHUB_REF')=='refs/heads/main':
         raise ValueError('Gate bloqueado na main: candidatas são preparadas na branch de auditoria')
-    if os.getenv('GITHUB_HEAD_REF') not in ('',None,BRANCH):
+    branch=(os.getenv('GITHUB_HEAD_REF') or
+            os.getenv('GITHUB_REF','').removeprefix('refs/heads/') or BRANCH)
+    if branch not in BRANCHES_PERMITIDAS:
         raise ValueError('Pull request pertence a outra branch')
     files={}
     for item in ARQUIVOS:
@@ -64,7 +69,7 @@ def montar():
         raise ValueError('Commit do checkout difere da versão auditada no workflow')
     return {'projeto':'Election Lab 2026',
             'tipo':'release_candidate_nao_publicada',
-            'branch':BRANCH,'commit':h,
+            'branch':branch,'commit':h,
             'gerado_em_utc':datetime.now(timezone.utc).isoformat(),
             'python':sys.version.split()[0],
             'arquivos_sha256':files,
@@ -73,7 +78,8 @@ def montar():
 
 
 def verificar(manifesto):
-    if manifesto.get('branch')!=BRANCH or manifesto.get('publicado') is not False:
+    if (manifesto.get('branch') not in BRANCHES_PERMITIDAS or
+        manifesto.get('publicado') is not False):
         raise ValueError('Manifesto com branch ou status inesperado')
     if manifesto.get('commit')!=commit():
         raise ValueError('Commit diferente do manifesto aprovado')
