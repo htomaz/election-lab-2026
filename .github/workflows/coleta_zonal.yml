@@ -117,6 +117,9 @@ jobs:
           else
             python coletor_zonal.py --uf "$ESCOPO" --limite "$LIMITE" --taxa 12 --concorrencia 8 --saida dados_zonais_6258.json
           fi
+      - name: Conciliar zonas coletadas com EA20 oficial BR e UFs
+        timeout-minutes: 3
+        run: python auditar_coleta_programada.py --snapshot dados_zonais_6258.json --saida auditoria_ufbr.json
       - name: Preservar snapshot para próxima execução
         if: always() && hashFiles('dados_zonais_6258.json') != ''
         uses: actions/cache/save@v4
@@ -141,5 +144,6 @@ jobs:
           path: |
             dados_zonais_6258.json
             snapshot.sha256
+            auditoria_ufbr.json
           if-no-files-found: warn
           retention-days: 30
