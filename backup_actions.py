@@ -23,6 +23,17 @@ from motor_zonal_completo import chave_zona
 
 REPO='htomaz/election-lab-2026'
 BRANCH='fix/auditoria-pre-segundo-turno'
+
+
+def branch_do_backup(branch=None):
+    """Mantém ambientes de teste e produção separados por origem."""
+    valor=(branch or os.environ.get('ELECTION_LAB_SNAPSHOT_BRANCH')
+           or os.environ.get('GITHUB_REF_NAME') or BRANCH)
+    if valor not in ('main','fix/auditoria-pre-segundo-turno'):
+        raise ValueError('Branch de backup não autorizada')
+    return valor
+
+
 NOME='snapshot-zonal-6258'
 NOME_JSON='dados_zonais_6258.json'
 MAX_BYTES=30*1024*1024
@@ -142,21 +153,59 @@ def baixar_mais_recente(sess,token,repo=REPO,branch=BRANCH,
     return None
 
 
-def recuperar(destino,token=None,sess=None,ignorar_run=None):
+def baixar_historico_validado(sess,token,repo=REPO,branch=None,
+                              ignorar_run=None,max_artifacts=12):
+    """Devolve backups válidos do mais antigo para o mais novo.
+
+    Um artifact recente pode ter menos zonas caso uma execução tenha
+    perdido o cache. A união conservadora recupera também observações
+    mais antigas, sem regressão das gerações oficiais.
+    """
+    destino_branch=branch_do_backup(branch)
+    arts=listar_artifacts(sess,token,repo=repo)
+    elegiveis=sorted(
+        (a for a in arts if a.get('name')==NOME and not a.get('expired')
+         and a.get('workflow_run',{}).get('head_branch')==destino_branch
+         and a.get('workflow_run',{}).get('id')!=ignorar_run),
+        key=lambda a:int(a.get('id',0)),reverse=True)
+    snapshots=[]
+    for art in elegiveis[:max_artifacts]:
+        resposta=sess.get(
+            f"https://api.github.com/repos/{repo}/actions/artifacts/{int(art['id'])}/zip",
+            headers={'Authorization':f'Bearer {token}',
+                     'Accept':'application/vnd.github+json'},
+            timeout=(6,40))
+        resposta.raise_for_status()
+        try:
+            dados=extrair_artifact(resposta.content)
+        except (ValueError,zipfile.BadZipFile,UnicodeError,KeyError):
+            continue
+        snapshots.append((int(art['id']),dados))
+    return list(reversed(snapshots))
+
+
+def recuperar(destino,token=None,sess=None,ignorar_run=None,branch=None):
     from coletor_zonal import carregar_arquivo,salvar_atomico,_arquivo_bloqueado
     token=token or os.environ.get('GITHUB_SNAPSHOT_TOKEN') or os.environ.get('GITHUB_TOKEN')
     if not token:
         raise ValueError('Não há token de leitura de artifacts configurado')
     sess=sess or requests.Session()
-    mais_recente=baixar_mais_recente(sess,token,ignorar_run=ignorar_run)
-    if mais_recente is None:
+    historico=baixar_historico_validado(
+        sess,token,branch=branch,ignorar_run=ignorar_run)
+    if not historico:
         return {'restaurado':False,'motivo':'Nenhum artifact válido encontrado'}
     path=Path(destino)
     with _arquivo_bloqueado(path):
         original=carregar_arquivo(path) if path.exists() else None
-        atualizado=mesclar(original,mais_recente['snapshot'])
+        atualizado=original
+        # Mesclar em ordem cronológica: nenhuma parcial mais antiga
+        # pode apagar votos de uma geração mais recente.
+        for _,snapshot in historico:
+            atualizado=mesclar(atualizado,snapshot)
         salvar_atomico(path,atualizado)
-    return {'restaurado':True,'artifact_id':mais_recente['artifact_id'],
+    return {'restaurado':True,'artifact_id':historico[-1][0],
+            'artifacts_mesclados':len(historico),
+            'branch':branch_do_backup(branch),
             'zonas_com_votos':len(atualizado['observacoes']),
             'zonas_catalogadas':len(atualizado['catalogo'])}
 

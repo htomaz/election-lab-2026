@@ -2,9 +2,13 @@
 import hashlib
 import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 import zipfile
-from backup_actions import extrair_artifact,mesclar,baixar_mais_recente
+from backup_actions import (extrair_artifact,mesclar,baixar_mais_recente,
+                            recuperar,branch_do_backup)
 
 
 def snapshot(secoes=1):
@@ -69,6 +73,42 @@ class TestBackupActions(unittest.TestCase):
         r=baixar_mais_recente(sess,'fake-token')
         self.assertEqual(r['artifact_id'],90)
         self.assertEqual(len(sess.urls),3)
+
+    def test_recupera_uniao_de_artifacts_parciais_sem_regressao(self):
+        antigo=snapshot(1)
+        mais_novo=snapshot(3)
+        # O backup recente perdeu uma segunda zona, mas o antigo não.
+        segunda={'uf':'RJ','municipio':'60011','zona':'0001'}
+        antigo['catalogo'].append(segunda)
+        antigo['observacoes']['RJ|60011|0001']={
+            'geracao':'25/10/2026 18:00:00',
+            'lula':55,'flavio':45,'validos':100,
+            'secoes':1,'secoes_total':5,'capturado_em':1800000000.}
+        arts=[
+            {'id':22,'name':'snapshot-zonal-6258','expired':False,
+             'workflow_run':{'head_branch':'fix/auditoria-pre-segundo-turno','id':22}},
+            {'id':21,'name':'snapshot-zonal-6258','expired':False,
+             'workflow_run':{'head_branch':'fix/auditoria-pre-segundo-turno','id':21}},
+            {'id':20,'name':'snapshot-zonal-6258','expired':False,
+             'workflow_run':{'head_branch':'main','id':20}}]
+        sess=Sessao([{'artifacts':arts},artefato(mais_novo),artefato(antigo)])
+        with tempfile.TemporaryDirectory() as pasta:
+            p=Path(pasta)/'snapshot.json'
+            res=recuperar(p,token='fake',sess=sess,
+                         branch='fix/auditoria-pre-segundo-turno')
+            dados=json.loads(p.read_text(encoding='utf-8'))
+        self.assertEqual(res['artifacts_mesclados'],2)
+        self.assertEqual(res['zonas_com_votos'],2)
+        self.assertEqual(dados['observacoes']['SP|71072|0001']['secoes'],3)
+        self.assertEqual(dados['observacoes']['RJ|60011|0001']['secoes'],1)
+        self.assertEqual(len(sess.urls),3)
+
+    def test_backup_branch_autorizada(self):
+        with patch.dict('os.environ',{'GITHUB_REF_NAME':'main'},
+                        clear=True):
+            self.assertEqual(branch_do_backup(),'main')
+        with self.assertRaisesRegex(ValueError,'não autorizada'):
+            branch_do_backup('outra-branch')
 
     def test_backup_sem_catalogo_valido_nao_e_aceito(self):
         a=snapshot()
