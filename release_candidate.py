@@ -15,9 +15,13 @@ import subprocess
 import sys
 
 BRANCH='fix/auditoria-pre-segundo-turno'
-BRANCHES_PERMITIDAS=(BRANCH,'fix/validacao-conciliacao-25out26')
+BRANCHES_PERMITIDAS=(BRANCH,'fix/validacao-conciliacao-25out26',
+                     'feature/curvas-medias-fixas-por-votos')
 ARQUIVOS=(
-    'app.py','tse.py','modelo.py','modelo_zonas.py',
+    'app.py','curva_continuidade.py','perfil_geografico.py',
+    'data/curvas_medias_apuracao_2022T2_2026T1.csv',
+    'test_curva_continuidade.py','test_modelo_composicao.py',
+    'test_perfil_geografico.py','tse.py','modelo.py','modelo_zonas.py',
     'modelo_participacao.py','motor_zonal_completo.py',
     'painel_zonal_completo.py','coletor_zonal.py','registro.py',
     'proveniencia_tse.py','assinatura_jws.py','backup_actions.py',
