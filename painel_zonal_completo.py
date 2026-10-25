@@ -24,6 +24,7 @@ from sensibilidade_zonal import faixa_sensibilidade
 from proveniencia_tse import auditar_amostra
 from backup_actions import (recuperar as recuperar_actions,
                             listar_artifacts,branch_do_backup)
+from registro import sincronizar_historico_br
 from assinatura_jws import (comparar_assinado_zona,
                             TSE_JWS_PUBLIC_KEY_B64_OFICIAL,
                             TSE_JWS_KID_OFICIAL)
@@ -95,6 +96,8 @@ def _acompanhar_backup_na_sessao(caminho,token,branch):
                 resumo=recuperar_actions(
                     caminho,token=token,sess=sessao,branch=branch)
                 if resumo['restaurado']:
+                    dados=json.loads(Path(caminho).read_text(encoding='utf-8'))
+                    sincronizar_historico_br(dados.get('historico_br',[]))
                     st.session_state['ultimo_artifact_zonal']=ultimo
                     st.rerun()
         st.caption('Backup sincronizado com o último artifact disponível.')
@@ -170,6 +173,8 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
                         resultado_backup=recuperar_actions(
                             local_snapshot,token=token,branch=branch_backup)
                     if resultado_backup['restaurado']:
+                        dados=json.loads(local_snapshot.read_text(encoding='utf-8'))
+                        sincronizar_historico_br(dados.get('historico_br',[]))
                         st.success('Snapshot recuperado: '
                                    +str(resultado_backup['zonas_com_votos'])
                                    +' zonas com observações preservadas.')

@@ -52,6 +52,23 @@ class TestRegistro(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'5 MB'):
             registro.restaurar_csv(b'a'*(5*1024*1024+1))
 
+    def test_recupera_serie_br_apos_reinicializacao_do_streamlit(self):
+        registros=[
+            {'geracao':'25/10/2026 18:01:00',
+             'capturado':'2026-10-25T21:01:00+00:00',
+             'secoes':80,'secoes_total':100,'validos':4000,
+             'lula':2100,'flavio':1900},
+            {'geracao':'25/10/2026 18:15:00',
+             'capturado':'2026-10-25T21:15:00+00:00',
+             'secoes':90,'secoes_total':100,'validos':4500,
+             'lula':2300,'flavio':2200}]
+        registro.sincronizar_historico_br(registros)
+        self.assertEqual(len(registro.serie()),2)
+        self.path.unlink()
+        registro.sincronizar_historico_br(registros)
+        self.assertEqual(len(registro.serie()),2)
+        self.assertEqual(int(registro.serie().iloc[-1]['secoes']),90)
+
     def test_mesma_geracao_mais_recente_pode_corrigir_votos(self):
         x=self.snapshot()
         registro.salvar(x,{'lula':5100,'flavio':4900,'completo':True})

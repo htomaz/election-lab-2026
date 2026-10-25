@@ -47,6 +47,24 @@ def serie():
 
 
 
+def sincronizar_historico_br(registros,arquivo=None):
+    """Reconstrói o SQLite local usando APENAS a série BR do artifact validado.
+
+    Votos já observados não são misturados com projeções; estas são
+    preservadas quando o mesmo timestamp de geração já existir no banco.
+    """
+    from serie_nacional_actions import incorporar
+    linhas=incorporar(registros,[])
+    if not linhas:
+        return {'linhas_recebidas':0,'linhas_inseridas_ou_atualizadas':0}
+    destino=io.StringIO()
+    writer=csv.DictWriter(destino,fieldnames=CAMPOS)
+    writer.writeheader()
+    for item in linhas:
+        writer.writerow({**item,'proj_lula':'','proj_flavio':''})
+    return restaurar_csv(destino.getvalue(),arquivo=arquivo)
+
+
 def exportar_csv():
     """Backup simples e portátil; os números continuam identificados por geração."""
     df=serie()
