@@ -226,13 +226,27 @@ def painel():
             faixa_vertical=[max(0.0,minimo-margem),min(100.0,maximo+margem)]
         else:
             faixa_vertical=[0.0,100.0]
-        fig.update_layout(height=580,template='plotly_dark',
-            legend=dict(orientation='h',y=-.18,x=0,font=dict(size=10),itemwidth=30),
-            margin=dict(l=5,r=5,t=8,b=125),
-            xaxis=dict(title='Seções totalizadas (%)',range=[0,101]),
-            yaxis=dict(title='Votos válidos (%)',range=faixa_vertical,ticksuffix='%',tickformat='.1f'),
-            hovermode='x unified',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig,width="stretch",config={'displayModeBar':False,'responsive':True})
+        # Legenda em duas linhas ACIMA do gráfico: fica longe da barra do
+        # Streamlit Community Cloud, que encobre a parte inferior no celular.
+        # O hover individual evita o cartão gigante com as quatro séries.
+        fig.update_layout(height=620,template='plotly_dark',
+            legend=dict(orientation='h',y=1.03,yanchor='bottom',x=0,
+                        font=dict(size=10),itemwidth=30),
+            margin=dict(l=5,r=5,t=100,b=65),
+            xaxis=dict(title='Seções totalizadas (%)',range=[0,101],showspikes=False),
+            yaxis=dict(title='Votos válidos (%)',range=faixa_vertical,
+                       ticksuffix='%',tickformat='.1f',showspikes=False),
+            hovermode='closest',hoverdistance=20,
+            paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
+        # Em telas sensíveis ao toque o Plotly pode manter o hover aberto.
+        # Recriar o gráfico com uma key diferente limpa o cartão fixado.
+        if 'revisao_grafico_evolucao' not in st.session_state:
+            st.session_state['revisao_grafico_evolucao']=0
+        if st.button('✕ Fechar detalhes do gráfico',key='fechar_hover_evolucao'):
+            st.session_state['revisao_grafico_evolucao']+=1
+        st.plotly_chart(fig,width="stretch",
+                        key=f"evolucao_apuracao_{st.session_state['revisao_grafico_evolucao']}",
+                        config={'displayModeBar':False,'responsive':True})
         st.caption('Escala vertical com zoom automático para destacar variações; os percentuais não são alterados.')
         if demo:
             st.caption('Trajetórias fictícias apenas para testar o painel.')
