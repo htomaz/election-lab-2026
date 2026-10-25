@@ -1,6 +1,7 @@
 """Election Lab 2026 v0.5: dashboard mobile, histórico TSE e projeção experimental."""
 from __future__ import annotations
 from datetime import datetime
+import json
 from pathlib import Path
 import os
 import subprocess
@@ -18,6 +19,8 @@ from painel_zonal_completo import exibir_modelo_zonal_completo
 from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
+from modelo_zonas import carregar_zonas
+from perfil_geografico import compor_perfis_conciliados
 from registro import salvar, serie, exportar_csv, restaurar_csv
 from curva_continuidade import limpar_pontos, construir_continuacao
 from tse import coletar, UFS, resultado_disponivel
@@ -229,6 +232,40 @@ def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
 
 
 
+
+
+@st.cache_data(show_spinner=False)
+def _ler_referencias_zonais_seguras(caminho, modificacao):
+    return carregar_zonas(caminho)
+
+
+@st.cache_data(show_spinner=False)
+def _ler_snapshot_geografico_seguro(caminho, modificacao):
+    with open(caminho, encoding='utf-8') as arq:
+        return json.load(arq)
+
+
+def composicao_zonal_uf_somente_quando_conciliada(brutos):
+    """Edição opcional: snapshots EA20 6258 não substituem dados oficiais UF.
+
+    Sem catálogo EA16 e SOMA EXATA dos votos de zonas concluídas à parcial
+    UF do mesmo pleito, nunca há ajuste de seleção no gráfico nacional.
+    """
+    zonas=next((p for p in [ROOT/'historico_zonas.csv',
+                            ROOT/'data/historico_zonas.csv'] if p.is_file()),None)
+    snap=ROOT/'dados_zonais_6258.json'
+    if zonas is None or not snap.is_file():
+        return {}
+    try:
+        referencias=_ler_referencias_zonais_seguras(str(zonas),zonas.stat().st_mtime_ns)
+        snapshot=_ler_snapshot_geografico_seguro(str(snap),snap.stat().st_mtime_ns)
+        return compor_perfis_conciliados(brutos,snapshot,referencias)
+    except (OSError,ValueError,KeyError,TypeError,UnicodeError):
+        # Sem sinal de cobertura geográfica comprovada, permanece o modelo
+        # original por UF. Não ocultar nem alterar os votos oficiais.
+        return {}
+
+
 @st.cache_data(ttl=55, show_spinner=False)
 def obter_tse():
     return coletar()
@@ -261,10 +298,16 @@ def painel():
             st.warning('Histórico não encontrado. A apuração oficial pode ser exibida, mas a projeção permanecerá desativada. Use a aba **Históricos**.')
     nacional = brutos['BR']
     conciliacao_nacional = None if demo else reconciliar_brasil(brutos, UFS)
-    rel = projetar_locais(brutos, historico, peso, vol, intensidade)
+    perfis_geograficos = ({} if demo else
+                            composicao_zonal_uf_somente_quando_conciliada(brutos))
+    rel = projetar_locais(brutos, historico, peso, vol, intensidade,
+                         composicao_historica=perfis_geograficos)
     cobertura = rel['completo'] and len(brutos)==29 and all(brutos.get(uf,{}).get('secoes_total',0)>0 for uf in UFS)
     bases26 = sum(1 for uf in UFS if (2026,1) in historico.get(uf,{}))
     mostrar = bool(cobertura and (demo or bases26==28) and (demo or nacional.get('validos',0)>0))
+    ufs_correcao_geografica = [
+        linha['UF'] for linha in rel['linhas']
+        if linha.get('Perfil geográfico validado')]
     if conciliacao_nacional and conciliacao_nacional['status']=='inconsistente':
         mostrar=False
         st.error('Diferença entre o arquivo BR e a soma das 28 localidades na mesma geração. '
@@ -293,7 +336,16 @@ def painel():
             ('Lula · projetado',fmt_pct(rel['lula_pct']),fmt_int(rel['lula'])+' votos estimados',CORES['Lula projetado']),
             ('Flávio · projetado',fmt_pct(rel['flavio_pct']),fmt_int(rel['flavio'])+' votos estimados',CORES['Flávio projetado']),
         ])
-        st.caption('Modelo v0.3: projeção por UF baseada em histórico territorial agregado e parciais locais. Não há backtest nem intervalo de confiança validado. Não é resultado oficial.')
+        st.caption('Modelo experimental por UF: estimativas finais com ' 
+                   'históricos de 2022 e 2026. A composição das localidades '
+                   'ainda não apuradas só é corrigida quando snapshots zonais '
+                   'oficiais concluídos coincidem exatamente com totais UF; '
+                   'não implica calibração estatística validada.')
+        if not demo:
+            st.caption('Correção geográfica confirmada: '
+                       + (', '.join(sorted(ufs_correcao_geografica))
+                          if ufs_correcao_geografica else 'nenhuma UF — '
+                          'modelo anterior preservado'))
     else:
         st.info(f'Projeção desativada: histórico 2026 disponível para {bases26}/28 localidades. É necessário histórico completo e arquivos oficiais das 28 localidades.')
 
