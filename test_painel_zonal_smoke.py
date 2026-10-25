@@ -23,18 +23,18 @@ class TestPainelZonalSmoke(unittest.TestCase):
         self.assertGreaterEqual(len(app.metric),6)
 
     def test_interface_de_backup_com_token_aparece_sem_requisicao_remota(self):
-        # A credencial é fictícia e a checkbox vem desligada.
-        # Verifica o caminho autenticado sem baixar artifacts nem votos.
+        # Credencial fictícia: controla apenas a visibilidade da interface,
+        # sem acessar o GitHub ou consultar votos oficiais.
         import os
         from unittest.mock import patch
         code=(
-            "from pathlib import Path\\n"
-            "from painel_zonal_completo import exibir_modelo_zonal_completo\\n"
-            "exibir_modelo_zonal_completo(Path.cwd(),nomes={})\\n"
+            "from pathlib import Path\n"
+            "from painel_zonal_completo import exibir_modelo_zonal_completo\n"
+            "exibir_modelo_zonal_completo(Path.cwd(),nomes={})\n"
         )
-        with patch.dict(os.environ,{'GITHUB_SNAPSHOT_TOKEN':'teste-offline'}), \\
-             patch('painel_zonal_completo.resultado_disponivel',
-                   return_value=False):
+        with (patch.dict(os.environ,{'GITHUB_SNAPSHOT_TOKEN':'teste-offline'}),
+              patch('painel_zonal_completo.resultado_disponivel',
+                    return_value=False)):
             app=AppTest.from_string(code,default_timeout=90).run()
         self.assertFalse(app.exception,
                          [str(x.message) for x in app.exception])
