@@ -96,6 +96,100 @@ def cards(items):
     st.markdown('<div class="stat-grid">'+''.join(stat_card(*item) for item in items)+'</div>',unsafe_allow_html=True)
 
 
+
+@st.cache_data(show_spinner=False)
+def carregar_curvas_medias_fixas():
+    """100 pontos fixos, por percentual de votos (não de seções).
+
+    Cada média é a combinação 50/50 dos ritmos de 2022 T2 e 2026 T1,
+    condicionada ao desfecho hipotético Lula 49,02% / Flávio 50,98%.
+    """
+    caminho = ROOT/'data/curvas_medias_apuracao_2022T2_2026T1.csv'
+    df = pd.read_csv(caminho, sep=';', decimal=',')
+    esperado = ['votos_apurados_pct', 'media_lula_pct', 'media_flavio_pct']
+    if list(df.columns) != esperado or len(df) != 100:
+        raise ValueError('Curvas médias: arquivo inválido ou incompleto')
+    if df['votos_apurados_pct'].tolist() != list(range(1, 101)):
+        raise ValueError('Curvas médias: estágios de 1 a 100% inválidos')
+    if not ((df['media_lula_pct'] + df['media_flavio_pct'] - 100).abs() < 0.00011).all():
+        raise ValueError('Curvas médias: Lula + Flávio não somam 100%')
+    return df
+
+
+def exibir_grafico_com_referencias(df_serie, demo=False):
+    """Duas referências fixas + apuração real + projeção, no MESMO eixo de votos."""
+    ref = carregar_curvas_medias_fixas()
+    fig = go.Figure()
+    for nome, coluna, cor in [
+        ('Lula · média histórica fixa', 'media_lula_pct', '#e94b55'),
+        ('Flávio · média histórica fixa', 'media_flavio_pct', '#318ff3'),
+    ]:
+        fig.add_trace(go.Scatter(
+            x=ref['votos_apurados_pct'], y=ref[coluna],
+            mode='lines', name=nome,
+            line=dict(color=cor, width=3.7),
+            hovertemplate='%{x:.0f}% dos votos · %{y:.2f}%'
+                          '<extra>'+nome+' · cenário hipotético</extra>',
+        ))
+    series = [
+        ('Lula apurado', '#ad2534', 'solid', 2.5),
+        ('Flávio apurado', '#1459ab', 'solid', 2.5),
+        ('Lula projetado', CORES['Lula projetado'], 'dash', 2.5),
+        ('Flávio projetado', CORES['Flávio projetado'], 'dash', 2.5),
+    ]
+    valores = [pd.to_numeric(ref['media_lula_pct'], errors='coerce'),
+               pd.to_numeric(ref['media_flavio_pct'], errors='coerce')]
+    if not df_serie.empty and 'Progresso' in df_serie:
+        for nome, cor, traco, largura in series:
+            if nome not in df_serie:
+                continue
+            ys = pd.to_numeric(df_serie[nome], errors='coerce')
+            xs = pd.to_numeric(df_serie['Progresso'], errors='coerce')
+            validos = ys.notna() & xs.notna()
+            if not validos.any():
+                continue
+            valores.append(ys[validos])
+            fig.add_trace(go.Scatter(
+                x=xs[validos], y=ys[validos],
+                mode='lines+markers', name=nome,
+                line=dict(color=cor, dash=traco, width=largura),
+                marker=dict(size=5),
+                hovertemplate='%{x:.1f}% dos votos estimados · %{y:.2f}%'
+                              '<extra>'+nome+'</extra>',
+            ))
+    vv = pd.concat(valores, ignore_index=True).dropna()
+    minimo, maximo = float(vv.min()), float(vv.max())
+    margem = max(0.8, (maximo-minimo)*.07)
+    fig.update_layout(
+        height=655, template='plotly_dark',
+        legend=dict(orientation='h', y=1.02, yanchor='bottom', x=0,
+                    font=dict(size=10), itemwidth=30),
+        margin=dict(l=5, r=5, t=115, b=70),
+        xaxis=dict(title='Votos apurados / total final estimado (%)',
+                   range=[0,101], tick0=0, dtick=10, showspikes=False),
+        yaxis=dict(title='Votos válidos Lula + Flávio (%)',
+                   range=[max(0, minimo-margem), min(100, maximo+margem)],
+                   ticksuffix='%', tickformat='.1f', showspikes=False),
+        hovermode='closest', hoverdistance=20,
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    if 'revisao_grafico_evolucao' not in st.session_state:
+        st.session_state['revisao_grafico_evolucao'] = 0
+    if st.button('✕ Fechar detalhes do gráfico', key='fechar_hover_evolucao'):
+        st.session_state['revisao_grafico_evolucao'] += 1
+    st.plotly_chart(fig, width="stretch",
+                    key=f"evolucao_apuracao_{st.session_state['revisao_grafico_evolucao']}",
+                    config={'displayModeBar':False, 'responsive':True})
+    st.caption('Linhas vermelha e azul grossas: referências históricas FIXAS '
+               '(média 50/50 do ritmo de 2022 T2 e 2026 T1), '
+               'calibradas para o cenário hipotético Lula 49,02% / Flávio 50,98%. '
+               'Não são resultados nem previsões atualizadas.')
+    st.caption('O eixo horizontal usa votos contabilizados divididos pela projeção '
+               'do total final de votos dos dois candidatos em cada registro. '
+               'Sem projeção de volume válida, a parcial não recebe posição neste eixo.')
+    if demo:
+        st.caption('Modo demonstração: parciais e projeções são fictícias.')
+
+
 @st.cache_data(ttl=55, show_spinner=False)
 def obter_tse():
     return coletar()
@@ -111,6 +205,8 @@ def painel():
     else:
         if not resultado_disponivel():
             st.info('A divulgação oficial do segundo turno ainda não começou. Os resultados serão consultados a partir de 25/10/2026, 17h (Brasília).')
+            st.markdown('<div class="section-label">Evolução da apuração · referência fixa</div>',unsafe_allow_html=True)
+            exibir_grafico_com_referencias(pd.DataFrame())
             return
         with st.spinner('Consultando os arquivos oficiais do TSE...'):
             brutos, erros = obter_tse()
@@ -119,6 +215,8 @@ def painel():
             st.error('O resultado oficial nacional ainda não foi obtido. Não substituímos dados ausentes por simulações.')
             with st.expander('Diagnóstico da coleta'):
                 st.write(erros)
+            st.markdown('<div class="section-label">Evolução da apuração · referência fixa</div>',unsafe_allow_html=True)
+            exibir_grafico_com_referencias(pd.DataFrame())
             return
         if not historico:
             st.warning('Histórico não encontrado. A apuração oficial pode ser exibida, mas a projeção permanecerá desativada. Use a aba **Históricos**.')
@@ -167,7 +265,8 @@ def painel():
             b,h=gerar_demo(p)
             n=b['BR']; pp=projetar_locais(b,h,peso,vol,intensidade)
             d=n['lula']+n['flavio']
-            itens.append({'Progresso':100*n['secoes']/n['secoes_total'],
+            total_previsto = pp['lula'] + pp['flavio']
+            itens.append({'Progresso':min(100., 100*d/total_previsto) if total_previsto>0 else None,
                           'Lula apurado':100*n['lula']/d if d else None,
                           'Flávio apurado':100*n['flavio']/d if d else None,
                           'Lula projetado':pp['lula_pct'],'Flávio projetado':pp['flavio_pct']})
@@ -202,58 +301,15 @@ def painel():
         if not log.empty:
             den=(log['lula']+log['flavio']).replace(0,float('nan'))
             denp=(log['proj_lula']+log['proj_flavio']).replace(0,float('nan'))
-            df_serie=pd.DataFrame({'Progresso':100*log['secoes']/log['secoes_total'].replace(0,float('nan')),
+            df_serie=pd.DataFrame({'Progresso':(100*den/denp).clip(lower=0, upper=100),
                 'Lula apurado':100*log['lula']/den,'Flávio apurado':100*log['flavio']/den,
                 'Lula projetado':100*log['proj_lula']/denp,'Flávio projetado':100*log['proj_flavio']/denp})
         else:
             df_serie=pd.DataFrame()
-    if not df_serie.empty:
-        fig=go.Figure()
-        for nome, tracejado in [('Lula apurado','solid'),('Flávio apurado','solid'),('Lula projetado','dash'),('Flávio projetado','dash')]:
-            fig.add_trace(go.Scatter(x=df_serie['Progresso'],y=df_serie[nome],mode='lines+markers',name=nome,
-                line=dict(color=CORES[nome.split()[0]] if 'apurado' in nome else CORES[nome],dash=tracejado,width=2.5),
-                marker=dict(size=4),hovertemplate='%{x:.1f}% apurado · %{y:.2f}% votos válidos<extra>'+nome+'</extra>'))
-        # O zoom vertical acompanha TODAS as quatro curvas (apuradas e projetadas).
-        # Margem pequena evita cortar os marcadores nas extremidades, sem alterar dados.
-        colunas_grafico=['Lula apurado','Flávio apurado','Lula projetado','Flávio projetado']
-        valores_grafico=pd.concat(
-            [pd.to_numeric(df_serie[coluna],errors='coerce') for coluna in colunas_grafico],
-            ignore_index=True).dropna()
-        if not valores_grafico.empty:
-            minimo=float(valores_grafico.min())
-            maximo=float(valores_grafico.max())
-            margem=max(0.20,(maximo-minimo)*0.05)
-            faixa_vertical=[max(0.0,minimo-margem),min(100.0,maximo+margem)]
-        else:
-            faixa_vertical=[0.0,100.0]
-        # Legenda em duas linhas ACIMA do gráfico: fica longe da barra do
-        # Streamlit Community Cloud, que encobre a parte inferior no celular.
-        # O hover individual evita o cartão gigante com as quatro séries.
-        fig.update_layout(height=620,template='plotly_dark',
-            legend=dict(orientation='h',y=1.03,yanchor='bottom',x=0,
-                        font=dict(size=10),itemwidth=30),
-            margin=dict(l=5,r=5,t=100,b=65),
-            xaxis=dict(title='Seções totalizadas (%)',range=[0,101],showspikes=False),
-            yaxis=dict(title='Votos válidos (%)',range=faixa_vertical,
-                       ticksuffix='%',tickformat='.1f',showspikes=False),
-            hovermode='closest',hoverdistance=20,
-            paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
-        # Em telas sensíveis ao toque o Plotly pode manter o hover aberto.
-        # Recriar o gráfico com uma key diferente limpa o cartão fixado.
-        if 'revisao_grafico_evolucao' not in st.session_state:
-            st.session_state['revisao_grafico_evolucao']=0
-        if st.button('✕ Fechar detalhes do gráfico',key='fechar_hover_evolucao'):
-            st.session_state['revisao_grafico_evolucao']+=1
-        st.plotly_chart(fig,width="stretch",
-                        key=f"evolucao_apuracao_{st.session_state['revisao_grafico_evolucao']}",
-                        config={'displayModeBar':False,'responsive':True})
-        st.caption('Escala vertical com zoom automático para destacar variações; os percentuais não são alterados.')
-        if demo:
-            st.caption('Trajetórias fictícias apenas para testar o painel.')
-        else:
-            st.caption('A série oficial só registra consultas realizadas enquanto o aplicativo está ativo. O armazenamento gratuito pode ser temporário.')
-    else:
-        st.info('O gráfico será preenchido à medida que novas parciais forem coletadas.')
+    exibir_grafico_com_referencias(df_serie, demo=demo)
+    if not demo:
+        st.caption('A série oficial registra apenas consultas coletadas. '
+                   'O armazenamento do Streamlit gratuito pode ser temporário.')
 
     with st.expander('Diagnóstico histórico por zona eleitoral (não é apuração ao vivo)'):
         caminho_zonas = ROOT/'historico_zonas.csv'
