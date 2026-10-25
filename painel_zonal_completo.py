@@ -22,7 +22,8 @@ from motor_zonal_completo import executar, ler_snapshot
 from municipios_tse import nome_municipio
 from sensibilidade_zonal import faixa_sensibilidade
 from proveniencia_tse import auditar_amostra
-from backup_actions import recuperar as recuperar_actions
+from backup_actions import (recuperar as recuperar_actions,
+                            listar_artifacts,branch_do_backup)
 from assinatura_jws import (comparar_assinado_zona,
                             TSE_JWS_PUBLIC_KEY_B64_OFICIAL,
                             TSE_JWS_KID_OFICIAL)
@@ -62,6 +63,45 @@ def _preview_historica(hist):
 
 def _formatar_numero(x):
     return f'{float(x):,.0f}'.replace(',','.')
+
+
+@st.fragment(run_every='180s')
+def _acompanhar_backup_na_sessao(caminho,token,branch):
+    """Sincroniza somente quando o operador ativa e a sessão fica aberta.
+
+    Não é daemon nem substitui armazenamento persistente; cada sessão
+    ativa faz no máximo uma consulta de lista de artifacts a cada 3 min.
+    """
+    ativado=st.checkbox('Atualizar automaticamente a partir do GitHub '
+                       '(a cada 3 minutos nesta sessão)',
+                       value=False,key='acompanhar_snapshot_zonal')
+    if not ativado:
+        return
+    if not resultado_disponivel():
+        st.caption('Sincronização suspensa até o início da apuração oficial.')
+        return
+    try:
+        with requests.Session() as sessao:
+            artifacts=listar_artifacts(sessao,token)
+            disponiveis=[int(a['id']) for a in artifacts
+                         if a.get('name')=='snapshot-zonal-6258'
+                         and not a.get('expired')
+                         and a.get('workflow_run',{}).get('head_branch')==branch]
+            if not disponiveis:
+                st.caption('Ainda não há snapshots publicados nesta branch.')
+                return
+            ultimo=max(disponiveis)
+            if st.session_state.get('ultimo_artifact_zonal') != ultimo:
+                resumo=recuperar_actions(
+                    caminho,token=token,sess=sessao,branch=branch)
+                if resumo['restaurado']:
+                    st.session_state['ultimo_artifact_zonal']=ultimo
+                    st.rerun()
+        st.caption('Backup sincronizado com o último artifact disponível.')
+    except (requests.RequestException,ValueError,OSError,
+            KeyError,RuntimeError) as exc:
+        st.warning('Sincronização remota indisponível; snapshot local '
+                   'preservado. '+type(exc).__name__+': '+str(exc)[:120])
 
 
 def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
@@ -114,11 +154,21 @@ def exibir_modelo_zonal_completo(root,nomes=None,peso_2026=.75,
             except (FileNotFoundError,KeyError):
                 token=''
         if token:
+            try:
+                branch_backup=branch_do_backup(
+                    str(st.secrets.get('ELECTION_LAB_SNAPSHOT_BRANCH',''))
+                    or None)
+            except (FileNotFoundError,KeyError):
+                branch_backup=branch_do_backup()
+            st.caption('Origem de backup: '+branch_backup+
+                       ' · atualização automática apenas com sessão aberta.')
+            _acompanhar_backup_na_sessao(local_snapshot,token,branch_backup)
             if st.button('Recuperar último artifact validado do GitHub',
                          key='recuperar_backup_zonal'):
                 try:
                     with st.spinner('Verificando SHA-256 e conciliando os arquivos...'):
-                        resultado_backup=recuperar_actions(local_snapshot,token=token)
+                        resultado_backup=recuperar_actions(
+                            local_snapshot,token=token,branch=branch_backup)
                     if resultado_backup['restaurado']:
                         st.success('Snapshot recuperado: '
                                    +str(resultado_backup['zonas_com_votos'])
