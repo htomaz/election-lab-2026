@@ -27,7 +27,7 @@ def testar(p,rotulo,viewport):
     if not resp or resp.status>=400:
         raise AssertionError(f'{rotulo}: app HTTP {resp.status if resp else "sem resposta"}')
     page.get_by_text('Apuração & projeção presidencial',exact=False).wait_for(timeout=45000)
-    page.get_by_text('MODO DEMONSTRAÇÃO',exact=False).wait_for(timeout=45000)
+    page.get_by_text('MODO DEMONSTRAÇÃO',exact=False).first.wait_for(timeout=45000)
     OUT.mkdir(exist_ok=True)
     paginas=[]
     for nome,aba,alvo in (
