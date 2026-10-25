@@ -51,6 +51,17 @@ jobs:
       - name: Conferir catálogo oficial de municípios e zonas do 1º turno
         timeout-minutes: 3
         run: python teste_catalogo_zonas_tse.py
+      - name: Pré-voo EA16 segundo turno (somente cadastro, sem votos)
+        timeout-minutes: 2
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          from preflight_ea16_segundo_turno import executar
+          resultado=executar()
+          print('Pré-voo EA16 segundo turno:',resultado)
+          if resultado['status']!='ea16_3221_confere_primeiro_turno_na_uf':
+              raise SystemExit('Cadastro EA16 ainda não confirmado nesta execução')
+          PY
       - name: Reconciliar comparecimento, abstenção e votos por zona
         run: python validar_participacao.py
       - name: Backtest 2022 participação, abstenção, brancos e nulos
