@@ -651,6 +651,41 @@ def painel_estados_compacto():
         tabela_apuracao_compacta([linha_regiao] + [
             formatar_linha_apuracao(uf, dados.get(uf)) for uf in ufs
         ])
+    st.markdown('#### Ranking de seções ainda não apuradas')
+    st.caption('Estados ordenados do maior para o menor número absoluto de '
+               'seções restantes. Apenas dados oficiais por UF.')
+    pendentes = []
+    ausentes = []
+    for uf in sorted(u for u in UFS if u != 'ZZ'):
+        d = dados.get(uf)
+        if not d or d.get('secoes') is None or d.get('secoes_total') is None:
+            ausentes.append(uf)
+            continue
+        total, apuradas = int(d['secoes_total']), int(d['secoes'])
+        if total <= 0 or apuradas < 0 or apuradas > total:
+            ausentes.append(uf)
+            continue
+        faltam = total - apuradas
+        pendentes.append((uf, faltam, 100.*faltam/total, apuradas, total))
+    pendentes.sort(key=lambda linha: (-linha[1], linha[0]))
+    celulas_pendentes = ''.join(
+        '<tr><td>'+escape(uf)+'</td>'
+        '<td>'+fmt_int(faltam)+'</td>'
+        '<td>'+f'{pct:.1f}'.replace('.', ',')+'%</td>'
+        '<td>'+fmt_int(apuradas)+'</td>'
+        '<td>'+fmt_int(total)+'</td></tr>'
+        for uf,faltam,pct,apuradas,total in pendentes)
+    st.markdown(
+        '<div class="ufs-compactas"><table><thead><tr>'
+        '<th>UF</th><th>Faltam</th><th>% falta</th>'
+        '<th>Apuradas</th><th>Total</th></tr></thead><tbody>'
+        +celulas_pendentes+'</tbody></table></div>',
+        unsafe_allow_html=True)
+    if ausentes:
+        st.caption('Sem dados válidos para o ranking: '+', '.join(ausentes)+'.')
+    st.caption('Critério: seções restantes = total de seções − seções '
+               'totalizadas. Não confundir com votos ainda não apurados.')
+
     st.caption('Urnas = % de seções totalizadas; Seções = apuradas/total. '
                'Lula e Flávio = votos oficiais; Abst. = eleitores ausentes '
                'nas seções totalizadas (quantidade, não taxa). '
