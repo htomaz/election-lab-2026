@@ -128,27 +128,12 @@ def carregar_curvas_medias_fixas():
 
 
 def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
-    """Evolução observada (cheia), projeção conectada (tracejada) e médias fixas.
+    """Evolução observada (cheia) e projeção conectada (tracejada).
 
     Todas as linhas usam o mesmo eixo: % dos votos Lula+Flávio em relação
     ao volume total final estimado PELO MODELO NO MOMENTO DA CONSULTA.
     """
-    referencias = carregar_curvas_medias_fixas()
     fig = go.Figure()
-
-    # Referências pré-calculadas: nunca são recalibradas pelo placar ao vivo.
-    for titulo, coluna, cor in [
-        ('Lula · cenário das pesquisas (3 dias)', 'media_lula_pct', '#f4a0a6'),
-        ('Flávio · cenário das pesquisas (3 dias)', 'media_flavio_pct', '#89c6f2'),
-    ]:
-        fig.add_trace(go.Scatter(
-            x=referencias['votos_apurados_pct'], y=referencias[coluna],
-            mode='lines', name=titulo,
-            line=dict(color=cor, width=2, dash='dot'),
-            opacity=.8,
-            hovertemplate='%{x:.0f}% dos votos · %{y:.2f}%'
-                          '<extra>'+titulo+' · cenário hipotético</extra>',
-        ))
 
     observados = []
     if not df_serie.empty:
@@ -196,19 +181,23 @@ def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
                 ))
                 series_grafico.extend(valores)
 
-    valores_y = (referencias['media_lula_pct'].tolist() +
-                 referencias['media_flavio_pct'].tolist() + series_grafico)
-    minimo, maximo = min(valores_y), max(valores_y)
-    margem = max(0.8, (maximo-minimo)*.07)
+    # Zoom vertical baseado EXCLUSIVAMENTE nas curvas oficiais e projetadas.
+    # Evita que o cenário de pesquisas, não exibido, afaste as linhas.
+    if series_grafico:
+        minimo, maximo = min(series_grafico), max(series_grafico)
+        margem = max(.18, (maximo-minimo)*.035)
+        faixa_y = [max(0., minimo-margem), min(100., maximo+margem)]
+    else:
+        faixa_y = [45., 55.]
     fig.update_layout(
         height=655, template='plotly_dark',
         legend=dict(orientation='h', y=1.02, yanchor='bottom', x=0,
                     font=dict(size=10), itemwidth=30),
-        margin=dict(l=5, r=5, t=115, b=70),
+        margin=dict(l=5, r=5, t=95, b=70),
         xaxis=dict(title='Votos apurados / total final estimado (%)',
                    range=[0,101], tick0=0, dtick=10, showspikes=False),
         yaxis=dict(title='Participação Lula + Flávio (%)',
-                   range=[max(0, minimo-margem), min(100, maximo+margem)],
+                   range=faixa_y,
                    ticksuffix='%', tickformat='.1f', showspikes=False),
         hovermode='closest', hoverdistance=20,
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -223,13 +212,9 @@ def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
                'continuação a partir da última parcial até o resultado projetado '
                'pelo modelo atual. A tendência inicial usa a evolução recente '
                'das parciais no tempo; o trajeto intermediário é uma simulação.')
-    st.caption('Linhas finas pontilhadas = cenário FIXO das pesquisas dos últimos '
-               '3 dias (Lula 49,02% e Flávio 50,98%), distribuído pela média '
-               'dos ritmos históricos de apuração de 2022 (2º turno) e '
-               '2026 (1º turno). Não é o resultado da projeção ao vivo.')
     if not observados:
         st.caption('Aguardando parcial posicionável no eixo de votos e projeção '
-                   'de volume final validada; referências históricas continuam visíveis.')
+                   'de volume final validada; aguardando dados para traçar as curvas.')
     elif not construir_continuacao(observados, final_modelo):
         if observados[-1][0] < 100. - 1e-8:
             st.caption('Continuação indisponível enquanto o modelo não apresentar '
@@ -288,7 +273,7 @@ def painel():
     else:
         if not resultado_disponivel():
             st.info('A divulgação oficial do segundo turno ainda não começou. Os resultados serão consultados a partir de 25/10/2026, 17h (Brasília).')
-            st.markdown('<div class="section-label">Evolução da apuração · referência fixa</div>',unsafe_allow_html=True)
+            st.markdown('<div class="section-label">Evolução da apuração</div>',unsafe_allow_html=True)
             exibir_grafico_com_referencias(pd.DataFrame())
             return
         with st.spinner('Consultando os arquivos oficiais do TSE...'):
