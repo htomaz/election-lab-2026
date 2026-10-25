@@ -19,6 +19,7 @@ from demo import gerar_demo
 from historicos_online import baixar_e_importar, URLS
 from modelo import carregar_historico, projetar_locais
 from registro import salvar, serie, exportar_csv, restaurar_csv
+from curva_continuidade import limpar_pontos, construir_continuacao
 from tse import coletar, UFS, resultado_disponivel
 
 st.set_page_config(page_title='Election Lab 2026', page_icon='📊', layout='wide', initial_sidebar_state='collapsed')
@@ -116,49 +117,78 @@ def carregar_curvas_medias_fixas():
     return df
 
 
-def exibir_grafico_com_referencias(df_serie, demo=False):
-    """Duas referências fixas + apuração real + projeção, no MESMO eixo de votos."""
-    ref = carregar_curvas_medias_fixas()
+def exibir_grafico_com_referencias(df_serie, demo=False, final_modelo=None):
+    """Evolução observada (cheia), projeção conectada (tracejada) e médias fixas.
+
+    Todas as linhas usam o mesmo eixo: % dos votos Lula+Flávio em relação
+    ao volume total final estimado PELO MODELO NO MOMENTO DA CONSULTA.
+    """
+    referencias = carregar_curvas_medias_fixas()
     fig = go.Figure()
-    for nome, coluna, cor in [
-        ('Lula · média histórica fixa', 'media_lula_pct', '#e94b55'),
-        ('Flávio · média histórica fixa', 'media_flavio_pct', '#318ff3'),
+
+    # Referências pré-calculadas: nunca são recalibradas pelo placar ao vivo.
+    for titulo, coluna, cor in [
+        ('Lula · média histórica fixa', 'media_lula_pct', '#f4a0a6'),
+        ('Flávio · média histórica fixa', 'media_flavio_pct', '#89c6f2'),
     ]:
         fig.add_trace(go.Scatter(
-            x=ref['votos_apurados_pct'], y=ref[coluna],
-            mode='lines', name=nome,
-            line=dict(color=cor, width=3.7),
+            x=referencias['votos_apurados_pct'], y=referencias[coluna],
+            mode='lines', name=titulo,
+            line=dict(color=cor, width=2, dash='dot'),
+            opacity=.8,
             hovertemplate='%{x:.0f}% dos votos · %{y:.2f}%'
-                          '<extra>'+nome+' · cenário hipotético</extra>',
+                          '<extra>'+titulo+' · cenário hipotético</extra>',
         ))
-    series = [
-        ('Lula apurado', '#ad2534', 'solid', 2.5),
-        ('Flávio apurado', '#1459ab', 'solid', 2.5),
-        ('Lula projetado', CORES['Lula projetado'], 'dash', 2.5),
-        ('Flávio projetado', CORES['Flávio projetado'], 'dash', 2.5),
-    ]
-    valores = [pd.to_numeric(ref['media_lula_pct'], errors='coerce'),
-               pd.to_numeric(ref['media_flavio_pct'], errors='coerce')]
-    if not df_serie.empty and 'Progresso' in df_serie:
-        for nome, cor, traco, largura in series:
-            if nome not in df_serie:
-                continue
-            ys = pd.to_numeric(df_serie[nome], errors='coerce')
-            xs = pd.to_numeric(df_serie['Progresso'], errors='coerce')
-            validos = ys.notna() & xs.notna()
-            if not validos.any():
-                continue
-            valores.append(ys[validos])
-            fig.add_trace(go.Scatter(
-                x=xs[validos], y=ys[validos],
-                mode='lines+markers', name=nome,
-                line=dict(color=cor, dash=traco, width=largura),
-                marker=dict(size=5),
-                hovertemplate='%{x:.1f}% dos votos estimados · %{y:.2f}%'
-                              '<extra>'+nome+'</extra>',
+
+    observados = []
+    if not df_serie.empty:
+        for _, linha in df_serie.iterrows():
+            observados.append((
+                linha.get('Progresso'),
+                linha.get('Lula apurado'),
+                linha.get('Capturado'),
             ))
-    vv = pd.concat(valores, ignore_index=True).dropna()
-    minimo, maximo = float(vv.min()), float(vv.max())
+    observados = limpar_pontos(observados)
+
+    series_grafico = []
+    if observados:
+        # Duas linhas grossas e contínuas SOMENTE até a última parcial.
+        x_real = [p[0] for p in observados]
+        lula_real = [p[1] for p in observados]
+        flavio_real = [100. - p[1] for p in observados]
+        for titulo, valores, cor in [
+            ('Lula · apurado real', lula_real, '#e64354'),
+            ('Flávio · apurado real', flavio_real, '#2696f0'),
+        ]:
+            fig.add_trace(go.Scatter(
+                x=x_real, y=valores, mode='lines+markers', name=titulo,
+                line=dict(color=cor, width=4.5),
+                marker=dict(size=5),
+                hovertemplate='%{x:.1f}% dos votos · %{y:.2f}%'
+                              '<extra>'+titulo+'</extra>',
+            ))
+            series_grafico.extend(valores)
+
+        # A continuação parte EXATAMENTE da última parcial observada,
+        # acompanha sua inclinação recente e converge ao resultado do modelo.
+        futura = construir_continuacao(observados, final_modelo)
+        if futura:
+            x_fut = [p[0] for p in futura]
+            for titulo, valores, cor in [
+                ('Lula · continuação projetada', [p[1] for p in futura], '#e64354'),
+                ('Flávio · continuação projetada', [100. - p[1] for p in futura], '#2696f0'),
+            ]:
+                fig.add_trace(go.Scatter(
+                    x=x_fut, y=valores, mode='lines', name=titulo,
+                    line=dict(color=cor, width=4, dash='dash'),
+                    hovertemplate='%{x:.1f}% dos votos · %{y:.2f}%'
+                                  '<extra>'+titulo+' · modelo experimental</extra>',
+                ))
+                series_grafico.extend(valores)
+
+    valores_y = (referencias['media_lula_pct'].tolist() +
+                 referencias['media_flavio_pct'].tolist() + series_grafico)
+    minimo, maximo = min(valores_y), max(valores_y)
     margem = max(0.8, (maximo-minimo)*.07)
     fig.update_layout(
         height=655, template='plotly_dark',
@@ -167,7 +197,7 @@ def exibir_grafico_com_referencias(df_serie, demo=False):
         margin=dict(l=5, r=5, t=115, b=70),
         xaxis=dict(title='Votos apurados / total final estimado (%)',
                    range=[0,101], tick0=0, dtick=10, showspikes=False),
-        yaxis=dict(title='Votos válidos Lula + Flávio (%)',
+        yaxis=dict(title='Participação Lula + Flávio (%)',
                    range=[max(0, minimo-margem), min(100, maximo+margem)],
                    ticksuffix='%', tickformat='.1f', showspikes=False),
         hovermode='closest', hoverdistance=20,
@@ -179,15 +209,24 @@ def exibir_grafico_com_referencias(df_serie, demo=False):
     st.plotly_chart(fig, width="stretch",
                     key=f"evolucao_apuracao_{st.session_state['revisao_grafico_evolucao']}",
                     config={'displayModeBar':False, 'responsive':True})
-    st.caption('Linhas vermelha e azul grossas: referências históricas FIXAS '
-               '(média 50/50 do ritmo de 2022 T2 e 2026 T1), '
-               'calibradas para o cenário hipotético Lula 49,02% / Flávio 50,98%. '
-               'Não são resultados nem previsões atualizadas.')
-    st.caption('O eixo horizontal usa votos contabilizados divididos pela projeção '
-               'do total final de votos dos dois candidatos em cada registro. '
-               'Sem projeção de volume válida, a parcial não recebe posição neste eixo.')
+    st.caption('Linhas grossas contínuas = votos observados; grossas tracejadas = '
+               'continuação a partir da última parcial até o resultado projetado '
+               'pelo modelo atual. A tendência inicial usa a evolução recente '
+               'das parciais no tempo; o trajeto intermediário é uma simulação.')
+    st.caption('Linhas finas pontilhadas = referências históricas FIXAS: '
+               'média 50/50 dos ritmos de 2022 (2º turno) e 2026 (1º turno), '
+               'condicionada ao cenário Lula 49,02% × Flávio 50,98%. '
+               'Esse cenário não é o destino da projeção ao vivo.')
+    if not observados:
+        st.caption('Aguardando parcial posicionável no eixo de votos e projeção '
+                   'de volume final validada; referências históricas continuam visíveis.')
+    elif not construir_continuacao(observados, final_modelo):
+        if observados[-1][0] < 100. - 1e-8:
+            st.caption('Continuação indisponível enquanto o modelo não apresentar '
+                       'um resultado final válido; o observado não é extrapolado.')
     if demo:
-        st.caption('Modo demonstração: parciais e projeções são fictícias.')
+        st.caption('Modo demonstração: parciais e projeção são fictícias.')
+
 
 
 @st.cache_data(ttl=55, show_spinner=False)
@@ -261,15 +300,16 @@ def painel():
     st.markdown('<div class="section-label">Evolução da apuração</div>',unsafe_allow_html=True)
     if demo:
         itens=[]
-        for p in range(5,101,5):
+        total_atual_modelo = rel['lula'] + rel['flavio'] if mostrar else 0
+        # O modo demonstração mostra somente parciais até o estágio selecionado.
+        for p in sorted(set([*range(5, nivel+1, 5), nivel])):
             b,h=gerar_demo(p)
             n=b['BR']; pp=projetar_locais(b,h,peso,vol,intensidade)
             d=n['lula']+n['flavio']
-            total_previsto = pp['lula'] + pp['flavio']
-            itens.append({'Progresso':min(100., 100*d/total_previsto) if total_previsto>0 else None,
+            itens.append({'Progresso':min(100., 100*d/total_atual_modelo) if total_atual_modelo>0 else None,
                           'Lula apurado':100*n['lula']/d if d else None,
                           'Flávio apurado':100*n['flavio']/d if d else None,
-                          'Lula projetado':pp['lula_pct'],'Flávio projetado':pp['flavio_pct']})
+                          'Capturado':None})
         df_serie=pd.DataFrame(itens)
     else:
         salvar(nacional, rel if mostrar else None)
@@ -300,13 +340,18 @@ def painel():
         log=log[log['validos']>0].copy() if not log.empty else log
         if not log.empty:
             den=(log['lula']+log['flavio']).replace(0,float('nan'))
-            denp=(log['proj_lula']+log['proj_flavio']).replace(0,float('nan'))
-            df_serie=pd.DataFrame({'Progresso':(100*den/denp).clip(lower=0, upper=100),
-                'Lula apurado':100*log['lula']/den,'Flávio apurado':100*log['flavio']/den,
-                'Lula projetado':100*log['proj_lula']/denp,'Flávio projetado':100*log['proj_flavio']/denp})
+            # Um denominador ÚNICO (estimativa atual do modelo) para todos
+            # os registros evita retrocessos artificiais por mudanças de base.
+            volume_modelo = rel['lula'] + rel['flavio'] if mostrar else 0
+            df_serie=pd.DataFrame({'Progresso':(100*den/volume_modelo).clip(lower=0, upper=100)
+                                   if volume_modelo>0 else float('nan'),
+                'Lula apurado':100*log['lula']/den,
+                'Flávio apurado':100*log['flavio']/den,
+                'Capturado':log['capturado']})
         else:
             df_serie=pd.DataFrame()
-    exibir_grafico_com_referencias(df_serie, demo=demo)
+    exibir_grafico_com_referencias(
+        df_serie, demo=demo, final_modelo=rel['lula_pct'] if mostrar else None)
     if not demo:
         st.caption('A série oficial registra apenas consultas coletadas. '
                    'O armazenamento do Streamlit gratuito pode ser temporário.')
