@@ -20,6 +20,7 @@ import requests
 
 from auditoria_ao_vivo import validar_substituicao
 from motor_zonal_completo import chave_zona
+from serie_nacional_actions import incorporar
 
 REPO='htomaz/election-lab-2026'
 BRANCH='fix/auditoria-pre-segundo-turno'
@@ -59,6 +60,7 @@ def validar_snapshot(dados):
     for key in dados['observacoes']:
         if not isinstance(key,str) or chave_zona(*key.split('|')) not in chaves:
             raise ValueError('Backup com observação fora do catálogo')
+    incorporar(dados.get('historico_br',[]),[])
     return True
 
 
@@ -101,6 +103,8 @@ def mesclar(local,remoto):
         base[k]=x if k in base else x
     combinado={**remoto}
     combinado['catalogo']=list(base.values())
+    combinado['historico_br']=incorporar(
+        remoto.get('historico_br',[]),local.get('historico_br',[]))
     combinado['observacoes']=dict(remoto['observacoes'])
     for chave,v in local['observacoes'].items():
         antigo=combinado['observacoes'].get(chave)

@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 
 from auditoria_snapshot_zonal import auditar_parciais
-from coletor_zonal import carregar_arquivo
+from coletor_zonal import carregar_arquivo,salvar_atomico,_arquivo_bloqueado
+from serie_nacional_actions import registrar_oficial
 from tse import coletar as coletar_ufs
 
 
@@ -34,6 +35,14 @@ def executar(arquivo,saida):
     snap=carregar_arquivo(arquivo)
     oficiais,erros=coletar_ufs()
     relatorio=avaliar(snap,oficiais,erros)
+    # BR oficial é guardado mesmo que a comparação zonal seja parcial.
+    # Dado agregado permanece rotulado como observado, nunca previsto.
+    if 'BR' in oficiais:
+        with _arquivo_bloqueado(arquivo):
+            atual=carregar_arquivo(arquivo)
+            registrar_oficial(atual,oficiais['BR'])
+            salvar_atomico(arquivo,atual)
+        relatorio['historico_br_registros']=len(atual['historico_br'])
     Path(saida).write_text(json.dumps(relatorio,ensure_ascii=False,
                         indent=2),encoding='utf-8')
     if relatorio['status'] in ('divergente','inconclusivo'):
