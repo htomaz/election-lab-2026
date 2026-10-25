@@ -736,6 +736,106 @@ def painel_estados_compacto():
     else:
         st.info('Sem histórico ou dados estaduais suficientes para estimar '
                 'os votos restantes.')
+    st.markdown('#### Destino estimado dos votos restantes')
+    st.caption('Vermelho: Lula · Azul: Flávio. Barras representam a divisão '
+               'dos votos válidos ainda não apurados, segundo o modelo.')
+    destinos = []
+    for item in previsao_ufs['linhas']:
+        uf = item['UF']
+        if uf == 'ZZ' or uf not in dados:
+            continue
+        d = dados[uf]
+        total_s = int(d.get('secoes_total',0))
+        apuradas_s = int(d.get('secoes',0))
+        if total_s <= 0 or not 0 <= apuradas_s <= total_s:
+            continue
+        lula_rest = max(0.,float(item['Lula projetado'])-float(item['Lula apurado']))
+        flavio_rest = max(0.,float(item['Flávio projetado'])-float(item['Flávio apurado']))
+        validos_rest = lula_rest+flavio_rest
+        if validos_rest <= 0 and apuradas_s < total_s:
+            continue
+        # Estimativa separada de abstenções: extrapolação da taxa observada
+        # entre eleitores das seções totalizadas para o eleitorado pendente.
+        # Não tratar abstenção como voto válido.
+        aptos = d.get('aptos')
+        processados = d.get('aptos_processados')
+        comparecimento = d.get('comparecimento')
+        abst_obs = d.get('abstencoes')
+        abst_rest = None
+        taxa_abst = None
+        if (aptos is not None and processados is not None and
+            comparecimento is not None and abst_obs is not None):
+            aptos, processados = int(aptos), int(processados)
+            comparecimento, abst_obs = int(comparecimento), int(abst_obs)
+            base = comparecimento+abst_obs
+            if base > 0 and aptos >= processados >= 0:
+                taxa_abst = abst_obs/base
+                abst_rest = round((aptos-processados)*taxa_abst)
+        destinos.append((uf,lula_rest,flavio_rest,validos_rest,
+                         taxa_abst,abst_rest))
+    destinos.sort(key=lambda x:(-x[3],x[0]))
+    if destinos:
+        linhas_destino = []
+        for uf,lula_rest,flavio_rest,validos_rest,taxa_abst,abst_rest in destinos:
+            lula_pct = 100*lula_rest/validos_rest if validos_rest else 0
+            flavio_pct = 100*flavio_rest/validos_rest if validos_rest else 0
+            abst_texto = ('~'+fmt_int(abst_rest) if abst_rest is not None else '—')
+            linhas_destino.append(
+                '<div class="destino-linha"><b>'+escape(uf)+'</b>'
+                '<div class="destino-trilho">'
+                '<div class="destino-lula" style="width:'+f'{lula_pct:.2f}'+'%"></div>'
+                '<div class="destino-flavio" style="width:'+f'{flavio_pct:.2f}'+'%"></div>'
+                '</div><span>'+f'{lula_pct:.1f}'.replace('.',',')+'% / '
+                +f'{flavio_pct:.1f}'.replace('.',',')+'%</span>'
+                '<em>'+escape(abst_texto)+'</em></div>')
+        st.markdown("""<style>
+        .destino-linha{display:grid;grid-template-columns:25px minmax(50px,1fr)
+            99px 76px;align-items:center;gap:4px;min-height:18px;
+            font-size:clamp(9px,2.35vw,11px);font-variant-numeric:tabular-nums}
+        .destino-linha span,.destino-linha em{text-align:right;font-style:normal}
+        .destino-trilho{display:flex;height:10px;overflow:hidden;
+            border-radius:3px;background:#263346}
+        .destino-lula{background:#f06a70;height:100%}
+        .destino-flavio{background:#36b5eb;height:100%}
+        </style>""",unsafe_allow_html=True)
+        st.markdown('<div class="destino-linha"><b>UF</b><b>Válidos restantes</b>'
+                    '<b style="text-align:right">L / F</b>'
+                    '<b style="text-align:right">Abst. est.</b></div>'
+                    +''.join(linhas_destino),unsafe_allow_html=True)
+        soma_l = sum(x[1] for x in destinos)
+        soma_f = sum(x[2] for x in destinos)
+        soma_v = soma_l+soma_f
+        absts = [x[5] for x in destinos]
+        abst_completa = len(destinos)==27 and all(x is not None for x in absts)
+        st.markdown('**Consolidado dos votos válidos restantes · 27 UFs**'
+                    if len(destinos)==27 else
+                    '**Consolidado parcial dos votos válidos restantes · '
+                    +str(len(destinos))+' UFs**')
+        if soma_v > 0:
+            st.markdown(
+                '<div class="destino-trilho" style="height:19px">'
+                '<div class="destino-lula" style="width:'
+                +f'{100*soma_l/soma_v:.2f}'+'%"></div>'
+                '<div class="destino-flavio" style="width:'
+                +f'{100*soma_f/soma_v:.2f}'+'%"></div></div>',
+                unsafe_allow_html=True)
+            st.markdown(
+                '🔴 **Lula:** '+fmt_int(round(soma_l))+' votos · '+
+                f'{100*soma_l/soma_v:.2f}'.replace('.',',')+'% dos válidos restantes'
+                '  |  🔵 **Flávio:** '+fmt_int(round(soma_f))+' votos · '+
+                f'{100*soma_f/soma_v:.2f}'.replace('.',',')+'% dos válidos restantes')
+            st.caption('Total de votos válidos restantes estimados: '+
+                       fmt_int(round(soma_v))+'. Abstenções adicionais estimadas: '+
+                       (fmt_int(sum(absts)) if abst_completa else
+                        'N/D (cobertura incompleta)')+'.')
+        st.caption('A proporção Lula/Flávio é calculada sobre os votos válidos '
+                   'restantes, não sobre o eleitorado. Abst. est. é uma '
+                   'extrapolação da taxa de ausência já observada ao eleitorado '
+                   'não totalizado, apresentada separadamente. Brancos e nulos '
+                   'não estão incluídos. Todas as projeções são experimentais.')
+    else:
+        st.info('Sem dados suficientes para distribuir os votos restantes.')
+
     if ausentes:
         st.caption('Sem dados válidos para o ranking: '+', '.join(ausentes)+'.')
     st.caption('Critério: seções restantes = total de seções − seções '
