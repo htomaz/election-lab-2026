@@ -344,6 +344,22 @@ def painel():
             ('Lula · projetado',fmt_pct(rel['lula_pct']),fmt_int(rel['lula'])+' votos estimados',CORES['Lula projetado']),
             ('Flávio · projetado',fmt_pct(rel['flavio_pct']),fmt_int(rel['flavio'])+' votos estimados',CORES['Flávio projetado']),
         ])
+        # Diferenças absolutas entre os dois candidatos, sempre calculadas
+        # a partir do mesmo resultado projetado (nunca da parcial oficial).
+        lider = ('Flávio' if rel['flavio'] > rel['lula'] else
+                 'Lula' if rel['lula'] > rel['flavio'] else 'Empate')
+        diferenca_votos = abs(int(rel['flavio']) - int(rel['lula']))
+        total_projetado = int(rel['lula']) + int(rel['flavio'])
+        diferenca_pp = (100. * diferenca_votos / total_projetado
+                        if total_projetado else 0.)
+        cards([
+            ('Diferença projetada · pontos percentuais',
+             fmt_pct(diferenca_pp).replace('%', ' p.p.'),
+             'Vantagem de ' + lider if lider != 'Empate' else 'Empate projetado'),
+            ('Diferença projetada · votos',
+             fmt_int(diferenca_votos),
+             'Vantagem de ' + lider if lider != 'Empate' else 'Empate projetado'),
+        ])
         st.caption('Modelo experimental por UF: estimativas finais com ' 
                    'históricos de 2022 e 2026. A composição das localidades '
                    'ainda não apuradas só é corrigida quando snapshots zonais '
