@@ -45,13 +45,6 @@ class TestPerfilGeografico(unittest.TestCase):
             compor_perfis_conciliados(self.ufs,self.snapshot,self.historico),
             {})
 
-    def test_ausencia_de_um_dos_periodos_bloqueia_composicao_mista(self):
-        # A correção agregada exige ambos os períodos quando solicitados.
-        # Se houver só 2022, deve prevalecer o estimador UF legado.
-        self.assertEqual(
-            compor_perfis_conciliados(self.ufs,self.snapshot,self.historico),
-            {})
-
     def test_snapshot_zona_parcial_nao_serve_de_geografia_completa(self):
         self.snapshot['observacoes']['SP|71072|0001']['secoes']=5
         self.assertEqual(compor_perfis_conciliados(
