@@ -566,48 +566,26 @@ def historicos():
     st.caption('Fonte: https://dadosabertos.tse.jus.br/dataset/resultados-2022 e https://dadosabertos.tse.jus.br/dataset/resultados-2026')
 
 
-def painel_estados_compacto():
-    """Quadro compacto exclusivamente com parciais oficiais por UF."""
-    st.markdown('#### Apuração por estado')
-    if modo.startswith('Demonstração'):
-        st.info('Selecione **TSE oficial · 2º turno** na barra lateral para ver os votos reais por estado.')
-        return
-    if not resultado_disponivel():
-        st.info('Aguardando divulgação oficial.')
-        return
-    dados, erros = obter_tse()
-    if not dados:
-        st.warning('Nenhuma parcial estadual disponível nesta consulta.')
-        return
-    # BR é total nacional, ZZ representa votos do exterior, não um estado.
-    linhas = []
-    for uf in sorted(u for u in UFS if u != 'ZZ'):
-        d = dados.get(uf)
-        if not d:
-            linhas.append((uf, '—', '—', '—', '—'))
-            continue
-        secoes = int(d.get('secoes', 0))
-        total = int(d.get('secoes_total', 0))
-        pct = 100 * secoes / total if total else 0.
-        linhas.append((uf, f'{pct:.1f}'.replace('.', ',')+'%',
-                       fmt_int(secoes)+'/'+fmt_int(total),
-                       fmt_int(int(d.get('lula', 0))),
-                       fmt_int(int(d.get('flavio', 0)))))
-    # CSS compacto: 27 linhas em uma única imagem vertical no celular.
+REGIOES_UFS = {
+    'Norte': ('AC','AP','AM','PA','RO','RR','TO'),
+    'Nordeste': ('AL','BA','CE','MA','PB','PE','PI','RN','SE'),
+    'Centro-Oeste': ('DF','GO','MT','MS'),
+    'Sudeste': ('ES','MG','RJ','SP'),
+    'Sul': ('PR','RS','SC'),
+}
+
+
+def tabela_apuracao_compacta(linhas):
+    """Tabela HTML compacta, sem projeções e sem rolagem horizontal."""
     celulas = ''.join(
-        '<tr><td>'+escape(uf)+'</td><td>'+escape(pct)+'</td>'
+        '<tr><td>'+escape(str(uf))+'</td><td>'+escape(pct)+'</td>'
         '<td>'+escape(secoes)+'</td><td>'+escape(lula)+'</td>'
-        '<td>'+escape(flavio)+'</td></tr>'
-        for uf,pct,secoes,lula,flavio in linhas)
-    tabela = (
-        '<div class="ufs-compactas"><table><thead><tr>'
-        '<th>UF</th><th>Urnas</th><th>Seções</th>'
-        '<th class="lula">Lula</th><th class="flavio">Flávio</th>'
-        '</tr></thead><tbody>'+celulas+'</tbody></table></div>')
+        '<td>'+escape(flavio)+'</td><td>'+escape(abst)+'</td></tr>'
+        for uf,pct,secoes,lula,flavio,abst in linhas)
     st.markdown("""<style>
     .ufs-compactas{width:100%;overflow:hidden}
     .ufs-compactas table{width:100%;border-collapse:collapse;table-layout:auto;
-      font-size:clamp(9px,2.65vw,12px);font-variant-numeric:tabular-nums;line-height:1.1}
+      font-size:clamp(8px,2.25vw,11px);font-variant-numeric:tabular-nums;line-height:1.1}
     .ufs-compactas th,.ufs-compactas td{padding:4px 2px;text-align:right;
       white-space:nowrap;border-bottom:1px solid #263346}
     .ufs-compactas th:first-child,.ufs-compactas td:first-child{text-align:left;font-weight:700}
@@ -616,11 +594,68 @@ def painel_estados_compacto():
     .ufs-compactas .flavio{color:#36b5eb}
     @media(max-width:400px){.ufs-compactas th,.ufs-compactas td{padding:3px 1px}}
     </style>""",unsafe_allow_html=True)
-    st.markdown(tabela,unsafe_allow_html=True)
-    st.caption('Urnas = % de seções totalizadas; seções = apuradas/total. '
-               'Lula e Flávio = votos oficiais, não projeções. '
-               'Exterior (ZZ) não incluído. Gerações estaduais podem ter horários diferentes.')
-    st.caption('Atualização: '+str(dados.get('BR',{}).get('geracao','não informada')))
+    st.markdown(
+        '<div class="ufs-compactas"><table><thead><tr>'
+        '<th>UF</th><th>Urnas</th><th>Seções</th>'
+        '<th class="lula">Lula</th><th class="flavio">Flávio</th>'
+        '<th>Abst.</th></tr></thead><tbody>'+celulas+
+        '</tbody></table></div>',unsafe_allow_html=True)
+
+
+def formatar_linha_apuracao(nome, d):
+    if d is None:
+        return (nome, '—', '—', '—', '—', '—')
+    secoes, total = int(d['secoes']), int(d['secoes_total'])
+    pct = f'{100*secoes/total:.1f}'.replace('.', ',')+'%' if total else '—'
+    abst = d.get('abstencoes')
+    # A abstenção é exclusivamente a contagem das seções já totalizadas.
+    abst_fmt = fmt_int(int(abst)) if abst is not None else '—'
+    return (nome, pct, fmt_int(secoes)+'/'+fmt_int(total) if total else '—',
+            fmt_int(int(d['lula'])),fmt_int(int(d['flavio'])),abst_fmt)
+
+
+def painel_estados_compacto():
+    """Apuração oficial por UF e por região, com abstenções observadas."""
+    st.markdown('#### Apuração por estado e região')
+    if modo.startswith('Demonstração'):
+        st.info('Selecione **TSE oficial · 2º turno** na barra lateral para ver as parciais reais.')
+        return
+    if not resultado_disponivel():
+        st.info('Aguardando divulgação oficial.')
+        return
+    dados, erros = obter_tse()
+    if not dados:
+        st.warning('Nenhuma parcial estadual disponível nesta consulta.')
+        return
+
+    # Agregação regional exclusivamente por soma de valores oficiais das UFs.
+    # Não agregar campos de eleitorado ausentes como zero.
+    linhas_regiao = []
+    for nome, ufs in REGIOES_UFS.items():
+        blocos = [dados.get(uf) for uf in ufs]
+        if any(d is None for d in blocos):
+            linhas_regiao.append(formatar_linha_apuracao(nome, None))
+            continue
+        campos = ('secoes','secoes_total','lula','flavio')
+        soma = {c:sum(int(d[c]) for d in blocos) for c in campos}
+        absts = [d.get('abstencoes') for d in blocos]
+        soma['abstencoes'] = (sum(int(v) for v in absts)
+                              if all(v is not None for v in absts) else None)
+        linhas_regiao.append(formatar_linha_apuracao(nome,soma))
+
+    st.markdown('**Regiões**')
+    tabela_apuracao_compacta(linhas_regiao)
+    st.markdown('**Estados e DF**')
+    linhas_uf = [formatar_linha_apuracao(uf,dados.get(uf))
+                 for uf in sorted(u for u in UFS if u != 'ZZ')]
+    tabela_apuracao_compacta(linhas_uf)
+    st.caption('Urnas = % de seções totalizadas; Seções = apuradas/total. '
+               'Lula e Flávio = votos oficiais; Abst. = eleitores ausentes '
+               'nas seções totalizadas (quantidade, não taxa). '
+               'Regiões = soma das UFs; valores ausentes aparecem como —. '
+               'Exterior (ZZ) excluído. Horários estaduais podem diferir.')
+    st.caption('Referência de atualização nacional: '+
+               str(dados.get('BR',{}).get('geracao','não informada')))
 
 
 aba1,aba2,aba3,aba4=st.tabs(['📈 Painel','🗺️ Estados','🧭 Zonas','🗂️ Históricos'])
