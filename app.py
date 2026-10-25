@@ -22,6 +22,7 @@ from modelo import carregar_historico, projetar_locais
 from modelo_zonas import carregar_zonas
 from perfil_geografico import compor_perfis_conciliados
 from registro import salvar, serie, exportar_csv, restaurar_csv
+from recuperacao_nacional import recuperar_serie_de_snapshot
 from curva_continuidade import limpar_pontos, construir_continuacao
 from tse import coletar, UFS, resultado_disponivel
 
@@ -371,8 +372,18 @@ def painel():
                           'Capturado':None})
         df_serie=pd.DataFrame(itens)
     else:
+        # O SQLite do Streamlit gratuito é efêmero. Se reiniciar vazio,
+        # reconstituir primeiro os snapshots BR já validados que estiverem
+        # presentes no backup local. Não consulta ou mistura fontes externas.
+        recuperacao = None
+        if serie().empty:
+            recuperacao = recuperar_serie_de_snapshot(ROOT/'dados_zonais_6258.json')
         salvar(nacional, rel if mostrar else None)
         with st.expander('Backup e recuperação da série nacional'):
+            if recuperacao and recuperacao.get('restaurado'):
+                st.success('Série nacional recuperada do snapshot oficial validado: '
+                           + str(recuperacao.get('linhas_recebidas',0)) + ' gerações.')
+
             backup=exportar_csv()
             if backup:
                 st.download_button('Baixar histórico de apuração/projeções (CSV)',
