@@ -46,6 +46,16 @@ class TestContinuidadeApuracao(unittest.TestCase):
         self.assertLess(trajeto[1][1], 49.8)
         self.assertTrue(all(math.isfinite(y) for _,y in trajeto))
 
+    def test_curvatura_visual_nao_supera_meio_ponto(self):
+        serie=[(12., 48.0, None), (16., 48.9, None), (20., 49.8, None)]
+        fim=50.3
+        trajeto=construir_continuacao(serie,fim)
+        x0,y0=trajeto[0]
+        for x,y in trajeto:
+            linear=y0+(fim-y0)*(x-x0)/(100.-x0)
+            self.assertLessEqual(abs(y-linear),.500001)
+        self.assertEqual(trajeto[-1],(100.,fim))
+
     def test_sem_modelo_ou_sem_apuracao_nao_inventa_dados(self):
         self.assertEqual(construir_continuacao([], 50.), [])
         self.assertEqual(construir_continuacao([(25., 47., None)], None), [])
