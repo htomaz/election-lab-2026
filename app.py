@@ -349,7 +349,7 @@ def painel():
                    'oficiais concluídos coincidem exatamente com totais UF; '
                    'não implica calibração estatística validada.')
         if not demo and testar_correcao_geografica:
-            st.caption('Correção geográfica experimental confirmada: 
+            st.caption('Correção geográfica experimental confirmada: '
                        + (', '.join(sorted(ufs_correcao_geografica))
                           if ufs_correcao_geografica else 'nenhuma UF — '
                           'modelo anterior preservado'))
